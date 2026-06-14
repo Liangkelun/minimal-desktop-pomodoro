@@ -159,6 +159,9 @@ function Invoke-SelfTest {
         if (-not (Test-Path -LiteralPath (Get-DesktopShortcutInstallerPath) -PathType Leaf)) {
             throw "selftest failed: desktop shortcut installer path"
         }
+        if ((Get-DefaultLanguage "zh-CN") -ne "zh-CN" -or (Get-DefaultLanguage "zh-Hans") -ne "zh-CN" -or (Get-DefaultLanguage "en-US") -ne "en-US" -or (Get-DefaultLanguage "fr-FR") -ne "en-US") {
+            throw "selftest failed: default language detection"
+        }
         $decodedCommand = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String((ConvertTo-EncodedPowerShellCommand "Write-Output 'ok'")))
         if ($decodedCommand -ne "Write-Output 'ok'") { throw "selftest failed: encoded powershell command" }
         $relaunchScript = New-AppRelaunchScript 12345 (Join-Path $script:DataDir "restart-selftest.log")

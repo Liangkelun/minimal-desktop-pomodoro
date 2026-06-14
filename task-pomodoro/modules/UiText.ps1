@@ -270,11 +270,21 @@ $script:TextEn = @{
     AppAlreadyRunning = "Minimal Desktop Pomodoro is already running."
 }
 
+function Get-DefaultLanguage([string]$CultureName = "") {
+    if ([string]::IsNullOrWhiteSpace($CultureName)) {
+        $CultureName = [System.Globalization.CultureInfo]::CurrentUICulture.Name
+    }
+    if (-not [string]::IsNullOrWhiteSpace($CultureName) -and $CultureName.StartsWith("zh", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return "zh-CN"
+    }
+    return "en-US"
+}
+
 function T([string]$Key) {
     if ($Key -in @("LoopIcon", "LoopOnIcon", "LoopOffIcon")) {
         return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($script:TextB64[$Key]))
     }
-    $language = "zh-CN"
+    $language = Get-DefaultLanguage
     if ($null -ne $script:Settings -and ($script:Settings.PSObject.Properties.Name -contains "Language")) {
         $language = [string]$script:Settings.Language
     }

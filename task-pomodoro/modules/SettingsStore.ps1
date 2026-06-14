@@ -21,7 +21,7 @@ function Get-DefaultSettings {
         EndSoundFile = Get-DefaultAudioPath "break-start.wav"
         WorkMusicFile = Get-DefaultAudioPath "focus-loop.wav"
         BreakMusicFile = Get-DefaultAudioPath "break-loop.wav"
-        Language = "zh-CN"
+        Language = Get-DefaultLanguage
         DailyArchiveHour = 0
         DailyArchiveMinute = 0
         LastDailyArchiveAt = $null
@@ -118,8 +118,14 @@ function Normalize-Settings {
             }
         }
     }
-    if ($script:Settings.Language -ne "en-US") {
+    if ($script:Settings.Language -eq "en-US") {
+        $script:Settings.Language = "en-US"
+    }
+    elseif ([string]$script:Settings.Language -like "zh*") {
         $script:Settings.Language = "zh-CN"
+    }
+    else {
+        $script:Settings.Language = $defaults.Language
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$script:Settings.LastDailyArchiveAt)) {
         try {
@@ -156,7 +162,7 @@ function Load-Settings {
 }
 
 function Reset-SettingsToDefaults {
-    $language = "zh-CN"
+    $language = Get-DefaultLanguage
     $lastDailyArchiveAt = $null
     $desktopShortcutPrompted = $false
     if ($null -ne $script:Settings) {

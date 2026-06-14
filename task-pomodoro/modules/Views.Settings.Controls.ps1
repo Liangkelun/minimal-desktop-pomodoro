@@ -186,6 +186,7 @@ function Apply-SettingsControls([object]$Controls) {
     $script:Settings.WorkMinutes = [int]$Controls.Work.Value
     $script:Settings.ShortBreakMinutes = [int]$Controls.Break.Value
     $script:Settings.Opacity = [double]($Controls.Opacity.Value / 100)
+    $script:Settings.TaskFontSize = [double]$Controls.TaskFont.Value
     $script:Settings.TopMost = [bool]$Controls.TopMost.Checked
     $script:Settings.DailyArchiveHour = [int]$Controls.DailyArchiveHour.Value
     $script:Settings.DailyArchiveMinute = [int]$Controls.DailyArchiveMinute.Value

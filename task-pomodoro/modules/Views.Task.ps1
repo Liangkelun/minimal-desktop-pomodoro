@@ -66,9 +66,10 @@ function Render-TaskView([string]$Mode) {
     $list.Dock = [System.Windows.Forms.DockStyle]::Fill
     $list.DisplayMember = "Display"
     $list.IntegralHeight = $false
-    $list.Font = $script:Form.Font
+    $list.Font = New-Object System.Drawing.Font($script:Form.Font.FontFamily, [float]$script:Settings.TaskFontSize, [System.Drawing.FontStyle]::Regular)
     Enable-TaskListDrawing $list
     $script:TaskRowHeight = [Math]::Max(22, ($list.ItemHeight + 2))
+    Ensure-TaskRowsVisible 1
     $list.BorderStyle = [System.Windows.Forms.BorderStyle]::None
     $list.BackColor = [System.Drawing.Color]::FromArgb(250, 251, 253)
     $list.AllowDrop = $true

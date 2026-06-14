@@ -20,6 +20,36 @@ function Get-TaskRowsWindowSlack {
     return 8
 }
 
+function Get-TaskRowsWindowHeight([int]$Rows) {
+    if ($Rows -lt 1) {
+        $Rows = 1
+    }
+    $rowHeight = 24
+    if ($null -ne $script:TaskRowHeight -and [int]$script:TaskRowHeight -gt 0) {
+        $rowHeight = [int]$script:TaskRowHeight
+    }
+    $paddingHeight = [int]$script:Form.Padding.Vertical
+    if ($null -ne $script:ContentPanel) {
+        $paddingHeight += [int]$script:ContentPanel.Padding.Vertical
+    }
+    return [int]($paddingHeight + ($Rows * $rowHeight) + (Get-TaskRowsWindowSlack))
+}
+
+function Ensure-TaskRowsVisible([int]$Rows) {
+    if ($null -eq $script:Form) {
+        return
+    }
+    $height = Get-TaskRowsWindowHeight $Rows
+    $minWidth = 240
+    if ($null -ne $script:Form.MinimumSize -and [int]$script:Form.MinimumSize.Width -gt 0) {
+        $minWidth = [int]$script:Form.MinimumSize.Width
+    }
+    $script:Form.MinimumSize = New-Object System.Drawing.Size($minWidth, $height)
+    if ([int]$script:Form.Height -lt $height) {
+        $script:Form.Height = $height
+    }
+}
+
 function Update-SizeToggleButton {
     if ($null -eq $script:SizeToggleButton) {
         return
@@ -48,18 +78,10 @@ function Resize-WindowForTaskRows([int]$Rows) {
     if ($Rows -lt 1) {
         $Rows = 1
     }
-    $rowHeight = 24
-    if ($null -ne $script:TaskRowHeight -and [int]$script:TaskRowHeight -gt 0) {
-        $rowHeight = [int]$script:TaskRowHeight
-    }
     Set-BottomChromeVisible $false
     $script:BottomChromeSuppressed = $true
 
-    $paddingHeight = [int]$script:Form.Padding.Vertical
-    if ($null -ne $script:ContentPanel) {
-        $paddingHeight += [int]$script:ContentPanel.Padding.Vertical
-    }
-    $height = $paddingHeight + ($Rows * $rowHeight) + (Get-TaskRowsWindowSlack)
+    $height = Get-TaskRowsWindowHeight $Rows
     if ($height -lt $script:Form.MinimumSize.Height) {
         $height = $script:Form.MinimumSize.Height
     }

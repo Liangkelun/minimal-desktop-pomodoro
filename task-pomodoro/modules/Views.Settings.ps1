@@ -3,29 +3,30 @@
 function Render-SettingsView {
     $script:ContentPanel.Controls.Clear()
 
+    $root = New-Object System.Windows.Forms.TableLayoutPanel
+    $root.Dock = [System.Windows.Forms.DockStyle]::Fill; $root.RowCount = 2; $root.ColumnCount = 1
+    $root.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+    $root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+    $root.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 40))) | Out-Null
+    Add-BottomChromeTracking $root
+
     $scroll = New-Object System.Windows.Forms.Panel
-    $scroll.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $scroll.AutoScroll = $true
-    $scroll.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+    $scroll.Dock = [System.Windows.Forms.DockStyle]::Fill; $scroll.AutoScroll = $true; $scroll.BackColor = $root.BackColor
     Add-BottomChromeTracking $scroll
 
     $panel = New-Object System.Windows.Forms.TableLayoutPanel
-    $panel.Dock = [System.Windows.Forms.DockStyle]::Top
-    $panel.AutoSize = $true
-    $panel.ColumnCount = 2
-    $panel.RowCount = 14
-    $panel.Padding = New-Object System.Windows.Forms.Padding(2)
-    $panel.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+    $panel.Dock = [System.Windows.Forms.DockStyle]::Top; $panel.AutoSize = $true; $panel.ColumnCount = 2; $panel.RowCount = 14
+    $panel.Padding = New-Object System.Windows.Forms.Padding(2); $panel.BackColor = $root.BackColor
     Add-BottomChromeTracking $panel
     $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 46))) | Out-Null
     $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 54))) | Out-Null
     for ($i = 0; $i -lt $panel.RowCount; $i++) {
         $rowHeight = 30
-        if ($i -in @(0, 5)) {
+        if ($i -in @(0, 6)) {
             $rowHeight = 24
         }
-        elseif ($i -eq 13) {
-            $rowHeight = 34
+        elseif ($i -eq 2) {
+            $rowHeight = 40
         }
         $panel.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, $rowHeight))) | Out-Null
     }
@@ -53,13 +54,10 @@ function Render-SettingsView {
     Add-SettingRow $panel (T "Language") $language 1
 
     $opacityPanel = New-Object System.Windows.Forms.TableLayoutPanel
-    $opacityPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $opacityPanel.ColumnCount = 2
-    $opacityPanel.RowCount = 1
-    $opacityPanel.Margin = New-Object System.Windows.Forms.Padding(0)
-    $opacityPanel.BackColor = $panel.BackColor
-    $opacityPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 64))) | Out-Null
+    $opacityPanel.Dock = [System.Windows.Forms.DockStyle]::Fill; $opacityPanel.ColumnCount = 2; $opacityPanel.RowCount = 1
+    $opacityPanel.Margin = New-Object System.Windows.Forms.Padding(0); $opacityPanel.BackColor = $panel.BackColor
     $opacityPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+    $opacityPanel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 56))) | Out-Null
 
     $opacity = New-Object System.Windows.Forms.TrackBar
     $opacity.Minimum = 30
@@ -69,12 +67,12 @@ function Render-SettingsView {
     $opacity.LargeChange = 10
     $opacity.Value = [int]([Math]::Round([double]$script:Settings.Opacity * 100))
     $opacity.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $opacity.Margin = New-Object System.Windows.Forms.Padding(4, 0, 0, 0)
+    $opacity.AutoSize = $false; $opacity.Height = 30; $opacity.Margin = New-Object System.Windows.Forms.Padding(0, 3, 4, 0)
     $opacityLabel = New-Object System.Windows.Forms.Label
     $opacityLabel.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $opacityLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
+    $opacityLabel.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight
     $opacityLabel.AutoSize = $false
-    $opacityLabel.MinimumSize = New-Object System.Drawing.Size(64, 0)
+    $opacityLabel.MinimumSize = New-Object System.Drawing.Size(56, 0)
     $opacityLabel.Margin = New-Object System.Windows.Forms.Padding(0)
     $opacityLabel.BackColor = $panel.BackColor
     $opacityLabel.Text = "$($opacity.Value)%"
@@ -92,12 +90,20 @@ function Render-SettingsView {
         }
         $label.Text = "$($sender.Value)%"
     })
-    $opacityPanel.Controls.Add($opacityLabel, 0, 0)
-    $opacityPanel.Controls.Add($opacity, 1, 0)
+    $opacityPanel.Controls.Add($opacity, 0, 0)
+    $opacityPanel.Controls.Add($opacityLabel, 1, 0)
     Add-SettingRow $panel (T "Opacity") $opacityPanel 2
 
+    $taskFont = New-Object System.Windows.Forms.NumericUpDown
+    $taskFont.Minimum = 9
+    $taskFont.Maximum = 32
+    $taskFont.DecimalPlaces = 1
+    $taskFont.Increment = [decimal]0.5
+    $taskFont.Value = [decimal]$script:Settings.TaskFontSize
+    Add-SettingRow $panel (T "TaskFontSize") $taskFont 3
+
     $topMostControl = New-CheckOnlyControl ([bool]$script:Settings.TopMost)
-    Add-SettingRow $panel (T "TopMost") $topMostControl.Panel 3
+    Add-SettingRow $panel (T "TopMost") $topMostControl.Panel 4
 
     $dailyArchivePanel = New-Object System.Windows.Forms.FlowLayoutPanel
     $dailyArchivePanel.Dock = [System.Windows.Forms.DockStyle]::Fill
@@ -127,43 +133,44 @@ function Render-SettingsView {
     $dailyArchiveMinute.Width = 52
     $dailyArchiveMinute.Value = [decimal]$script:Settings.DailyArchiveMinute
     $dailyArchivePanel.Controls.Add($dailyArchiveMinute)
-    Add-SettingRow $panel (T "DailyArchiveTime") $dailyArchivePanel 4
+    Add-SettingRow $panel (T "DailyArchiveTime") $dailyArchivePanel 5
 
-    Add-SettingSection $panel (T "PomodoroSettings") 5
+    Add-SettingSection $panel (T "PomodoroSettings") 6
 
     $work = New-Object System.Windows.Forms.NumericUpDown
     $work.Minimum = 1
     $work.Maximum = 180
     $work.Value = [decimal]$script:Settings.WorkMinutes
-    Add-SettingRow $panel (T "WorkMinutes") $work 6
+    Add-SettingRow $panel (T "WorkMinutes") $work 7
 
     $break = New-Object System.Windows.Forms.NumericUpDown
     $break.Minimum = 1
     $break.Maximum = 60
     $break.Value = [decimal]$script:Settings.ShortBreakMinutes
-    Add-SettingRow $panel (T "ShortBreakMinutes") $break 7
+    Add-SettingRow $panel (T "ShortBreakMinutes") $break 8
 
     $startSoundControl = New-AudioSettingControl ([bool]$script:Settings.StartSoundReminder) $audioState "StartSoundFile" "start" $false $false
-    Add-SettingRow $panel (T "StartSoundReminder") $startSoundControl.Panel 8
+    Add-SettingRow $panel (T "StartSoundReminder") $startSoundControl.Panel 9
 
     $endSoundControl = New-AudioSettingControl ([bool]$script:Settings.EndSoundReminder) $audioState "EndSoundFile" "end" $false $false
-    Add-SettingRow $panel (T "EndSoundReminder") $endSoundControl.Panel 9
+    Add-SettingRow $panel (T "EndSoundReminder") $endSoundControl.Panel 10
 
     $colorControl = New-CheckOnlyControl ([bool]$script:Settings.ColorReminder)
-    Add-SettingRow $panel (T "ColorReminder") $colorControl.Panel 10
+    Add-SettingRow $panel (T "ColorReminder") $colorControl.Panel 11
 
     $workMusicControl = New-AudioSettingControl ([bool]$script:Settings.WorkMusic) $audioState "WorkMusicFile" "work" $true ([bool]$script:Settings.WorkMusicLoop)
-    Add-SettingRow $panel (T "WorkMusic") $workMusicControl.Panel 11
+    Add-SettingRow $panel (T "WorkMusic") $workMusicControl.Panel 12
 
     $breakMusicControl = New-AudioSettingControl ([bool]$script:Settings.BreakMusic) $audioState "BreakMusicFile" "break" $true ([bool]$script:Settings.BreakMusicLoop)
-    Add-SettingRow $panel (T "BreakMusic") $breakMusicControl.Panel 12
+    Add-SettingRow $panel (T "BreakMusic") $breakMusicControl.Panel 13
 
-    $save = New-Button (T "SaveSettings") 128
+    $save = New-Button (T "SaveSettings") 110
     $save.Tag = [pscustomobject]@{
         Language = $language
         Work = $work
         Break = $break
         Opacity = $opacity
+        TaskFont = $taskFont
         TopMost = $topMostControl.Check
         DailyArchiveHour = $dailyArchiveHour
         DailyArchiveMinute = $dailyArchiveMinute
@@ -209,10 +216,29 @@ function Render-SettingsView {
         }
         Render-CurrentView
     })
-    $panel.Controls.Add($save, 0, 13)
-    $panel.SetColumnSpan($save, 2)
+
+    $defaults = New-Button (T "DefaultSettings") 110
+    $defaults.Add_Click({
+        Reset-SettingsToDefaults
+        if ($script:TimerState -eq "idle") { $script:SecondsRemaining = [int]$script:Settings.WorkMinutes * 60 }
+        elseif ($script:TimerState -eq "running") { Start-BackgroundAudio $script:TimerPhase }
+        elseif ($script:TimerState -ne "paused") { Stop-BackgroundAudio }
+        Save-Settings
+        Update-NavText; Update-WatermarkToggleButton; Update-TimerLabels; Set-Status (T "SettingsSaved")
+        Render-CurrentView
+    })
+
+    $buttons = New-Object System.Windows.Forms.FlowLayoutPanel
+    $buttons.Dock = [System.Windows.Forms.DockStyle]::Fill; $buttons.FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft; $buttons.WrapContents = $false
+    $buttons.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
+    $buttons.Margin = New-Object System.Windows.Forms.Padding(0); $buttons.BackColor = $root.BackColor
+    $buttons.Controls.Add($save)
+    $buttons.Controls.Add($defaults)
+    Add-BottomChromeTracking $buttons
 
     $scroll.Controls.Add($panel)
-    $script:ContentPanel.Controls.Add($scroll)
+    $root.Controls.Add($scroll, 0, 0)
+    $root.Controls.Add($buttons, 0, 1)
+    $script:ContentPanel.Controls.Add($root)
 }
 

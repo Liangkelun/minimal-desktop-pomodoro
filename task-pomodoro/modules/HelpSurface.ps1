@@ -39,6 +39,68 @@ function Show-HelpTopic([string]$TitleKey, [string]$TextKey) {
     }
 }
 
+function Show-HelpSponsor {
+    $qrPath = Join-Path (Get-AppPath "RootDir") "assets\sponsor\wechat-sponsor.jpg"
+    if (-not (Test-Path -LiteralPath $qrPath -PathType Leaf)) {
+        Show-HelpTopic "HelpSponsor" "HelpSponsorText"
+        return
+    }
+    if ($null -ne $script:Form -and $script:WatermarkMode) {
+        $script:Form.SetClickThrough($false)
+    }
+
+    $dialog = New-Object System.Windows.Forms.Form
+    $image = $null
+    try {
+        $dialog.Text = T "HelpSponsor"
+        $dialog.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterParent
+        $dialog.FormBorderStyle = [System.Windows.Forms.FormBorderStyle]::FixedDialog
+        $dialog.MinimizeBox = $false; $dialog.MaximizeBox = $false; $dialog.ShowInTaskbar = $false
+        $dialog.ClientSize = New-Object System.Drawing.Size(470, 630)
+        $dialog.Font = $script:Form.Font
+        $dialog.BackColor = [System.Drawing.Color]::FromArgb(250, 251, 253)
+
+        $layout = New-Object System.Windows.Forms.TableLayoutPanel
+        $layout.Dock = [System.Windows.Forms.DockStyle]::Fill; $layout.RowCount = 3; $layout.ColumnCount = 1
+        $layout.Padding = New-Object System.Windows.Forms.Padding(14); $layout.BackColor = $dialog.BackColor
+        $layout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 116))) | Out-Null
+        $layout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
+        $layout.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 38))) | Out-Null
+
+        $text = New-Object System.Windows.Forms.Label
+        $text.Text = T "HelpSponsorText"
+        $text.Dock = [System.Windows.Forms.DockStyle]::Fill; $text.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft; $text.BackColor = $dialog.BackColor
+        $layout.Controls.Add($text, 0, 0)
+
+        $picture = New-Object System.Windows.Forms.PictureBox
+        $picture.Dock = [System.Windows.Forms.DockStyle]::Fill; $picture.SizeMode = [System.Windows.Forms.PictureBoxSizeMode]::Zoom; $picture.BackColor = [System.Drawing.Color]::White
+        $image = [System.Drawing.Image]::FromFile($qrPath)
+        $picture.Image = $image
+        $layout.Controls.Add($picture, 0, 1)
+
+        $close = New-Button (T "Cancel") 92
+        $close.Anchor = [System.Windows.Forms.AnchorStyles]::Right; $close.Add_Click({ param($sender, $eventArgs) $sender.FindForm().Close() })
+        $layout.Controls.Add($close, 0, 2)
+        $dialog.AcceptButton = $close
+        $dialog.CancelButton = $close
+        $dialog.Controls.Add($layout)
+
+        if ($null -ne $script:Form -and -not $script:Form.IsDisposed) {
+            $dialog.ShowDialog($script:Form) | Out-Null
+        }
+        else {
+            $dialog.ShowDialog() | Out-Null
+        }
+    }
+    finally {
+        if ($null -ne $image) { $image.Dispose() }
+        $dialog.Dispose()
+        if ($script:WatermarkMode) {
+            Update-WatermarkClickThrough
+        }
+    }
+}
+
 function Add-HelpMenuEntry([object]$Menu, [System.Windows.Forms.ToolStripItem]$Item) {
     if ($Menu -is [System.Windows.Forms.ToolStripMenuItem]) {
         $Menu.DropDownItems.Add($Item) | Out-Null
@@ -88,7 +150,7 @@ function Show-HelpMenu([System.Windows.Forms.Control]$Owner) {
     Add-HelpMenuItem $update "UpdateInfo" "HelpUpdate" "UpdateInfoText"
     $menu.Items.Add($update) | Out-Null
     $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
-    Add-HelpMenuItem $menu "HelpSponsor" "HelpSponsor" "HelpSponsorText"
+    Add-HelpActionMenuItem $menu "HelpSponsor" { Show-HelpSponsor } $true
     Add-HelpMenuItem $menu "HelpAboutGovernance" "HelpAboutGovernance" "HelpAboutGovernanceText"
     $menu.Show($Owner, (New-Object System.Drawing.Point -ArgumentList @(0, [int]$Owner.Height)))
 }

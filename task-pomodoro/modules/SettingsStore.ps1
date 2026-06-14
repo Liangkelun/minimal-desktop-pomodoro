@@ -4,6 +4,7 @@ function Get-DefaultSettings {
     return [pscustomobject]@{
         TopMost = $true
         Opacity = 0.50
+        TaskFontSize = 15.0
         WorkMinutes = 25
         ShortBreakMinutes = 5
         SoundReminder = $true
@@ -79,6 +80,7 @@ function Normalize-Settings {
     $defaults = Get-DefaultSettings
 
     $script:Settings.Opacity = Get-ClampedNumber $script:Settings.Opacity $defaults.Opacity 0.30 1.00
+    $script:Settings.TaskFontSize = Get-ClampedNumber $script:Settings.TaskFontSize $defaults.TaskFontSize 9.0 32.0
     $script:Settings.WorkMinutes = [int](Get-ClampedNumber $script:Settings.WorkMinutes $defaults.WorkMinutes 1 180)
     $script:Settings.ShortBreakMinutes = [int](Get-ClampedNumber $script:Settings.ShortBreakMinutes $defaults.ShortBreakMinutes 1 60)
     $script:Settings.WindowWidth = [int](Get-ClampedNumber $script:Settings.WindowWidth $defaults.WindowWidth 300 900)
@@ -149,6 +151,32 @@ function Load-Settings {
         $script:Settings = Get-DefaultSettings
         Save-Settings
     }
+}
+
+function Reset-SettingsToDefaults {
+    $language = "zh-CN"
+    $lastDailyArchiveAt = $null
+    if ($null -ne $script:Settings) {
+        if ($script:Settings.PSObject.Properties.Name -contains "Language") {
+            $language = [string]$script:Settings.Language
+        }
+        if ($script:Settings.PSObject.Properties.Name -contains "LastDailyArchiveAt") {
+            $lastDailyArchiveAt = $script:Settings.LastDailyArchiveAt
+        }
+    }
+
+    $script:Settings = Get-DefaultSettings
+    $script:Settings.Language = $language
+    $script:Settings.LastDailyArchiveAt = $lastDailyArchiveAt
+    if ($null -ne $script:Form) {
+        $script:Settings.WindowWidth = [int]$script:Form.Width
+        $script:Settings.WindowHeight = [int]$script:Form.Height
+        $script:Settings.WindowX = [int]$script:Form.Location.X
+        $script:Settings.WindowY = [int]$script:Form.Location.Y
+        $script:Form.TopMost = [bool]$script:Settings.TopMost
+        $script:Form.Opacity = [double]$script:Settings.Opacity
+    }
+    Normalize-Settings
 }
 
 function Save-Settings {

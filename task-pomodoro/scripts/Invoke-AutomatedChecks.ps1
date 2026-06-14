@@ -236,6 +236,7 @@ Invoke-Check "Module load order" {
         "PomodoroAudio.ps1",
         "PomodoroEffects.ps1",
         "PomodoroEngine.ps1",
+        "AppRelaunch.ps1",
         "AppMaintenance.ps1",
         "UiTimer.ps1",
         "BottomChrome.ps1",
@@ -333,6 +334,7 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "PomodoroAudio.ps1"; Max = 150 },
         @{ Path = Join-Path $modulesDir "PomodoroEffects.ps1"; Max = 80 },
         @{ Path = Join-Path $modulesDir "PomodoroEngine.ps1"; Max = 230 },
+        @{ Path = Join-Path $modulesDir "AppRelaunch.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "AppMaintenance.ps1"; Max = 160 },
         @{ Path = Join-Path $modulesDir "UiTimer.ps1"; Max = 80 },
         @{ Path = Join-Path $modulesDir "BottomChrome.ps1"; Max = 120 },
@@ -368,6 +370,7 @@ Invoke-Check "Required launch and media assets" {
     Test-RequiredFile (Join-Path $rootDir "assets\audio\focus-loop.wav")
     Test-RequiredFile (Join-Path $rootDir "assets\audio\break-start.wav")
     Test-RequiredFile (Join-Path $rootDir "assets\audio\break-loop.wav")
+    Test-RequiredFile (Join-Path $rootDir "assets\sponsor\wechat-sponsor.jpg")
 
     $icons = @(
         Join-Path $rootDir "assets\icon\task-pomodoro-g-desktop.ico"
@@ -413,10 +416,17 @@ else {
             Assert-Property $settings "WorkMinutes" "settings"
             Assert-Property $settings "ShortBreakMinutes" "settings"
             $opacity = [double]$settings.Opacity
+            $taskFontSize = 15.0
+            if ($settings.PSObject.Properties.Name -contains "TaskFontSize") {
+                $taskFontSize = [double]$settings.TaskFontSize
+            }
             $workMinutes = [int]$settings.WorkMinutes
             $breakMinutes = [int]$settings.ShortBreakMinutes
             if ($opacity -lt 0.30 -or $opacity -gt 1.00) {
                 throw "settings Opacity is outside 0.30..1.00"
+            }
+            if ($taskFontSize -lt 9.0 -or $taskFontSize -gt 32.0) {
+                throw "settings TaskFontSize is outside 9.0..32.0"
             }
             if ($workMinutes -lt 1 -or $workMinutes -gt 180) {
                 throw "settings WorkMinutes is outside 1..180"

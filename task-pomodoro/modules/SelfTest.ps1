@@ -153,25 +153,17 @@ function Invoke-SelfTest {
         if ($quotedArg -ne '"D:\has space\文档.vbs"') {
             throw "selftest failed: process argument quoting"
         }
-        $encodedCommand = ConvertTo-EncodedPowerShellCommand "Write-Output 'ok'"
-        $decodedCommand = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String($encodedCommand))
-        if ($decodedCommand -ne "Write-Output 'ok'") {
-            throw "selftest failed: encoded powershell command"
-        }
+        $decodedCommand = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String((ConvertTo-EncodedPowerShellCommand "Write-Output 'ok'")))
+        if ($decodedCommand -ne "Write-Output 'ok'") { throw "selftest failed: encoded powershell command" }
         $relaunchScript = New-AppRelaunchScript 12345 (Join-Path $script:DataDir "restart-selftest.log")
-        if (
-            -not $relaunchScript.Contains('$parentProcessId = 12345') -or
-            -not $relaunchScript.Contains((Get-AppScopedMutexName "instance")) -or
-            -not $relaunchScript.Contains("WaitOne(30000)") -or
-            -not $relaunchScript.Contains("StartTaskPomodoro.vbs")
-        ) {
-            throw "selftest failed: relaunch helper script"
+        foreach ($fragment in @('$parentProcessId = 12345', (Get-AppScopedMutexName "instance"), "WaitOne(30000)", "StartTaskPomodoro.vbs")) {
+            if (-not $relaunchScript.Contains($fragment)) { throw "selftest failed: relaunch helper script" }
         }
         $mutexName = Get-AppScopedMutexName "selftest"
         if ($mutexName -notlike "Local\MinimalDesktopPomodoro-selftest-*") {
             throw "selftest failed: scoped mutex name"
         }
-        foreach ($requiredTextKey in @("NoOpenTasks", "NoTodayTasks", "HelpShortcutsText", "Close")) {
+        foreach ($requiredTextKey in @("NoOpenTasks", "NoTodayTasks", "HelpShortcutsText", "TaskFontSize", "Close")) {
             if ([string]::IsNullOrWhiteSpace((T $requiredTextKey))) {
                 throw "selftest failed: required ui text"
             }

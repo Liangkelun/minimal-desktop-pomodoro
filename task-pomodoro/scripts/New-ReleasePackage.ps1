@@ -216,6 +216,7 @@ try {
     Copy-RequiredDirectory (Join-Path $appRoot "modules") (Join-Path $appPackageRoot "modules")
     Copy-RequiredDirectory (Join-Path $appRoot "assets\audio") (Join-Path $appPackageRoot "assets\audio")
     Copy-MatchingFiles (Join-Path $appRoot "assets\icon") (Join-Path $appPackageRoot "assets\icon") @("*.ico", "*.png") -RequireAny | Out-Null
+    Copy-RequiredDirectory (Join-Path $appRoot "assets\sponsor") (Join-Path $appPackageRoot "assets\sponsor")
 
     $packageScriptsDir = Join-Path $appPackageRoot "scripts"
     foreach ($scriptName in @(

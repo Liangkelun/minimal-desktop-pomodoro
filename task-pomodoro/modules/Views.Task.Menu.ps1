@@ -50,18 +50,6 @@ function Add-OpenTaskLinkMenuItem([object]$Menu, [string]$TaskId) {
     Add-MenuEntry $Menu $item
 }
 
-function Edit-TaskTitle([string]$Id) {
-    $task = Get-TaskById $Id
-    if ($null -eq $task) {
-        return
-    }
-    $currentTitle = [string]$task.title
-    $newTitle = [Microsoft.VisualBasic.Interaction]::InputBox((T "EditTask"), (T "AppTitle"), $currentTitle)
-    if (Set-TaskTitle $Id $newTitle) {
-        Render-CurrentView
-    }
-}
-
 function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
     $selected = $List.SelectedItem
     if ($null -eq $selected) {
@@ -82,9 +70,8 @@ function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
     if ($Mode -eq "today") {
         Add-MenuItem $menu (T "PomodoroMenu") $selected.Id { param($sender, $eventArgs) Invoke-AppActionResult (Start-Pomodoro ([string]$sender.Tag)) }
         Add-MenuItem $menu $completeText $selected.Id $completeAction
-        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskTitle ([string]$sender.Tag) }
+        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
         $more = Add-SubMenu $menu "..."
-        Add-MenuItem $more (T "TaskDetails") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
         Add-OpenTaskLinkMenuItem $more $selected.Id
         Add-MenuItem $more (T "RemoveFromToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Unschedule-TaskToday ([string]$sender.Tag)) }
         Add-MenuItem $more (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (End-Task ([string]$sender.Tag)) }
@@ -93,10 +80,9 @@ function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
     else {
         Add-MenuItem $menu (T "ScheduleToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Schedule-TaskToday ([string]$sender.Tag)) }
         Add-MenuItem $menu $completeText $selected.Id $completeAction
-        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskTitle ([string]$sender.Tag) }
+        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
         Add-MenuItem $menu (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (End-Task ([string]$sender.Tag)) }
         $more = Add-SubMenu $menu "..."
-        Add-MenuItem $more (T "TaskDetails") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
         Add-OpenTaskLinkMenuItem $more $selected.Id
         Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Pin-TaskToTop "tasks" ([string]$sender.Tag)) }
     }

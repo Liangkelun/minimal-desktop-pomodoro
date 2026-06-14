@@ -28,6 +28,12 @@ function New-PomodoroOperationResult(
 }
 
 function Start-Pomodoro([string]$TaskId) {
+    if ($script:TimerState -ne "idle") {
+        $result = New-PomodoroOperationResult $false "" "" $false $null
+        $result.MessageKey = "TimerAlreadyRunning"
+        return $result
+    }
+
     $script:CurrentPomodoroTaskId = $TaskId
     $task = $null
     if (-not [string]::IsNullOrWhiteSpace($TaskId)) {

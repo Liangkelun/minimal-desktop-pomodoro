@@ -82,7 +82,7 @@ powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPom
 
 ## 维护边界
 
-当前主脚本已经开始拆出低风险模块。短期继续通过以下规则控制复杂度：
+当前主脚本已经拆成多个低风险模块。短期继续通过以下规则控制复杂度：
 
 - 新增业务规则时，优先补 `-SelfTest`。
 - 新增脚本时，必须能通过项目级语法检查。
@@ -90,13 +90,28 @@ powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPom
 - 新增隐藏交互时，同步更新帮助文案和 `docs/project-charter.md`。
 - 不在 UI 渲染函数里直接写复杂数据规则；数据规则应放在任务或番茄相关函数中。
 - `modules/UiText.ps1` 只放文案和文案选择函数。
-- `modules/Storage.ps1` 只放路径、文件、JSON 和通用对象 helper。
+- `modules/AppState.ps1` 放 `$App` 状态容器初始化和路径访问 helper；新增路径必须先进入 `$App.Paths`。
+- `modules/Storage.ps1` 只放目录、文件、JSON、锁和通用对象 helper；业务模块通过 `Get-AppPath` 取路径。
 - `modules/SettingsStore.ps1` 只放设置默认值、归一化、读取和保存。
-- `modules/TaskStore.ps1` 放任务模型、任务状态变更、排序和任务格式化。
-- `modules/PomodoroEngine.ps1` 放番茄状态机、番茄记录、音频和提醒触发。
-- `modules/WindowBehavior.ps1` 放窗口拖动、尺寸、底栏显隐、水印和穿透行为。
+- `modules/TaskModel.ps1` 放任务对象默认值、输入解析和任务结果对象。
+- `modules/TaskStore.ps1` 只放任务读写和迁移保存。
+- `modules/TaskQueries.ps1` 只放任务查询。
+- `modules/TaskOrdering.ps1` 只放排序、插入和拖拽移动规则。
+- `modules/TaskCommands.ps1` 只放新增、完成、归档、今日安排等命令。
+- `modules/PomodoroEngine.ps1` 放番茄状态流转；不要放音频、UI 闪烁或记录写入细节。
+- `modules/PomodoroRecords.ps1` 放番茄 JSONL 记录。
+- `modules/PomodoroAudio.ps1` 放声音资源解析、试听和背景音控制。
+- `modules/PomodoroEffects.ps1` 放番茄结束提醒的 UI 效果。
+- `modules/UiTimer.ps1` 放日期刷新和全局 tick 入口。
+- `modules/BottomChrome.ps1` 放底部导航显隐。
+- `modules/WindowSize.ps1` 放单行/多行窗口高度和尺寸按钮。
+- `modules/WindowDrag.ps1` 放窗口拖动。
+- `modules/HelpSurface.ps1` 放帮助按钮、帮助菜单和帮助弹窗。
+- `modules/WatermarkMode.ps1` 放水印模式、穿透和水印退出点。
 - `modules/Views.Core.ps1` 放状态栏、通用按钮、导航和结果对象 UI 处理。
-- `modules/Views.Task.ps1` 放任务列表、任务菜单、任务编辑入口。
+- `modules/Views.Task.ps1` 放任务列表渲染和列表交互入口。
+- `modules/Views.Task.Controls.ps1` 放任务预览、链接打开和详情输入控件。
+- `modules/Views.Task.ListDrawing.ps1` 放任务列表 owner-draw 绘制。
 - `modules/Views.Timer.ps1` 放计时器视图和 timer label 更新。
 - `modules/Views.More.ps1` 放更多页和已完成页。
 - `modules/Views.Settings.ps1` 放设置页、设置行 helper 和音频选择控件。
@@ -109,12 +124,12 @@ powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPom
 
 ## 后续可维护性路线
 
-当前已完成第一轮模块化。后续拆分应聚焦降低模块之间的隐式耦合：
+当前已完成多轮模块化。后续拆分应聚焦继续降低模块之间的隐式耦合：
 
-1. 将 `$script:` 全局状态逐步收敛到 `$App` 状态对象。
-2. 继续减少 `PomodoroEngine.ps1` 对具体 WinForms 控件存在性的假设，尤其是提醒闪烁部分。
+1. 将 UI 控件引用和计时状态继续从散落的 `$script:` 迁移到 `$App.Ui`、`$App.Window` 和 `$App.Timer`。
+2. 继续减少 `TaskPomodoro.ps1` 中的 UI 初始化体积，保持它只负责路径、模块加载、初始化和主事件循环。
 3. 为 `Views.Task.ps1`、`Views.Timer.ps1`、`Views.Settings.ps1` 建立更明确的手动冒烟清单。
-4. 保持 `TaskPomodoro.ps1` 只负责路径、模块加载、初始化和主事件循环。
-5. 新增业务行为时优先返回结果对象，由 `Views.Core.ps1` 统一解释为 UI 行为。
+4. 新增业务行为时优先返回结果对象，由 `Views.Core.ps1` 统一解释为 UI 行为。
+5. 新增模块时同步更新模块加载顺序、行数门禁和架构边界检查。
 
 拆分前的原则是：先用测试固定行为，再移动代码。不要在同一次改动里同时拆模块和改产品行为。

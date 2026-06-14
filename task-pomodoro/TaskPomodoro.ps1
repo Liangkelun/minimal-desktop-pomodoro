@@ -128,17 +128,11 @@ public class TaskPomodoroResizableForm : Form
 $ErrorActionPreference = "Stop"
 
 $script:RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$script:DataDir = Join-Path $script:RootDir "data"
-$script:ConfigDir = Join-Path $script:RootDir "config"
-$script:BackupDir = Join-Path $script:DataDir "backups"
-$script:TasksFile = Join-Path $script:DataDir "tasks.json"
-$script:PomodorosFile = Join-Path $script:DataDir "pomodoros.jsonl"
-$script:SettingsFile = Join-Path $script:ConfigDir "settings.json"
-
 $script:ModulesDir = Join-Path $script:RootDir "modules"
-foreach ($moduleName in @("UiText.ps1", "Storage.ps1", "SettingsStore.ps1", "TaskStore.ps1", "TaskDetails.ps1", "TaskArchive.ps1", "TaskFormat.ps1", "PomodoroEngine.ps1", "AppMaintenance.ps1", "WindowBehavior.ps1", "Views.Core.ps1", "Views.Task.Controls.ps1", "Views.Task.DetailsDialog.ps1", "Views.Task.Edit.ps1", "Views.Task.ps1", "Views.Task.Menu.ps1", "Views.Timer.ps1", "Views.More.ps1", "Views.Settings.Controls.ps1", "Views.Settings.ps1", "SelfTest.ps1")) {
+foreach ($moduleName in @("AppState.ps1", "UiText.ps1", "Storage.ps1", "SettingsStore.ps1", "TaskModel.ps1", "TaskStore.ps1", "TaskQueries.ps1", "TaskOrdering.ps1", "TaskCommands.ps1", "TaskDetails.ps1", "TaskArchive.ps1", "TaskFormat.ps1", "PomodoroRecords.ps1", "PomodoroAudio.ps1", "PomodoroEffects.ps1", "PomodoroEngine.ps1", "AppMaintenance.ps1", "UiTimer.ps1", "BottomChrome.ps1", "WindowSize.ps1", "WindowDrag.ps1", "HelpSurface.ps1", "WatermarkMode.ps1", "Views.Core.ps1", "Views.Task.Controls.ps1", "Views.Task.ListDrawing.ps1", "Views.Task.DetailsDialog.ps1", "Views.Task.Edit.ps1", "Views.Task.ps1", "Views.Task.Menu.ps1", "Views.Timer.ps1", "Views.More.ps1", "Views.Settings.Controls.ps1", "Views.Settings.ps1", "SelfTest.ps1")) {
     . (Join-Path $script:ModulesDir $moduleName)
 }
+Initialize-AppState $script:RootDir
 
 function Invoke-DataCheck {
     try {

@@ -147,6 +147,30 @@ function Test-ZipContents([string]$ZipPath, [string]$PackageName) {
     }
 }
 
+function Compress-ReleaseArchive([string]$SourcePath, [string]$DestinationPath) {
+    $lastError = $null
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        try {
+            [System.GC]::Collect()
+            [System.GC]::WaitForPendingFinalizers()
+            if ($attempt -gt 1) {
+                Start-Sleep -Milliseconds (250 * $attempt)
+            }
+            if (Test-Path -LiteralPath $DestinationPath -PathType Leaf) {
+                Remove-Item -LiteralPath $DestinationPath -Force
+            }
+            Compress-Archive -LiteralPath $SourcePath -DestinationPath $DestinationPath -Force
+            return
+        }
+        catch {
+            $lastError = $_
+            if ($attempt -eq 5) {
+                throw $lastError
+            }
+        }
+    }
+}
+
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $appRoot = Split-Path -Parent $scriptDir
 $workspaceRoot = Split-Path -Parent $appRoot
@@ -222,7 +246,7 @@ try {
         Remove-Item -LiteralPath $zipPath -Force
     }
 
-    Compress-Archive -LiteralPath $packageRoot -DestinationPath $zipPath -Force
+    Compress-ReleaseArchive $packageRoot $zipPath
     $zipItem = Get-Item -LiteralPath $zipPath
     if ($zipItem.Length -le 0) {
         throw "Release zip is empty: $zipPath"

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.4.0 - 2026-06-14
+
+### Changed
+
+- Split window behavior into focused modules for timer ticks, bottom chrome, window sizing, dragging, help surface, and watermark mode.
+- Added `AppState.ps1` and moved path access behind `$App.Paths` plus `Get-AppPath`.
+- Split task domain logic into model, store, queries, ordering, and commands.
+- Split pomodoro logic into records, audio, effects, and core state flow.
+- Split task list owner-drawing out of task control helpers.
+- Strengthened architecture checks to guard path access and business/UI boundaries.
+
+### Fixed
+
+- Preserved the one-row task view clipping fix through explicit self-test coverage.
+
 ## 0.3.0 - 2026-06-14
 
 ### Added
@@ -27,7 +42,6 @@
 ### Known Limitations
 
 - UI behavior still needs manual smoke testing before public release.
-- `WindowBehavior.ps1` still contains several related behaviors and is the next module to split.
 - Runtime data recovery is covered for invalid task JSON, but full backup restore UX is not implemented.
 
 ## 0.2.0 - 2026-06-14

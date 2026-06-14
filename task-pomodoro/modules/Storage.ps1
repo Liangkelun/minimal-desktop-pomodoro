@@ -7,9 +7,9 @@ function Ensure-Directory([string]$Path) {
 }
 
 function Initialize-Storage {
-    Ensure-Directory $script:DataDir
-    Ensure-Directory $script:ConfigDir
-    Ensure-Directory $script:BackupDir
+    Ensure-Directory (Get-AppPath "DataDir")
+    Ensure-Directory (Get-AppPath "ConfigDir")
+    Ensure-Directory (Get-AppPath "BackupDir")
 }
 
 function Get-IsoNow {
@@ -21,7 +21,7 @@ function Get-TodayString {
 }
 
 function Get-AppScopeHash {
-    $bytes = [System.Text.Encoding]::UTF8.GetBytes(([string]$script:RootDir).ToLowerInvariant())
+    $bytes = [System.Text.Encoding]::UTF8.GetBytes((Get-AppPath "RootDir").ToLowerInvariant())
     $hash = [System.Security.Cryptography.SHA256]::Create().ComputeHash($bytes)
     return ([BitConverter]::ToString($hash).Replace("-", "")).Substring(0, 16)
 }
@@ -54,7 +54,7 @@ function Backup-DataFile([string]$Path, [string]$Reason) {
     if (Test-Path -LiteralPath $Path) {
         $stamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
         $name = [System.IO.Path]::GetFileName($Path)
-        $dest = Join-Path $script:BackupDir "$name.$stamp.$Reason.bak"
+        $dest = Join-Path (Get-AppPath "BackupDir") "$name.$stamp.$Reason.bak"
         Copy-Item -LiteralPath $Path -Destination $dest -Force
     }
 }
@@ -79,7 +79,7 @@ function Write-JsonAtomic([string]$Path, [object]$Data) {
 }
 
 function Get-DefaultAudioPath([string]$FileName) {
-    $path = Join-Path $script:RootDir "assets\audio\$FileName"
+    $path = Join-Path (Get-AppPath "RootDir") "assets\audio\$FileName"
     if (Test-Path -LiteralPath $path) {
         return $path
     }
@@ -88,7 +88,7 @@ function Get-DefaultAudioPath([string]$FileName) {
 
 function Get-AppIconPath {
     foreach ($fileName in @("task-pomodoro-g.ico", "task-pomodoro.ico")) {
-        $path = Join-Path $script:RootDir "assets\icon\$fileName"
+        $path = Join-Path (Get-AppPath "RootDir") "assets\icon\$fileName"
         if (Test-Path -LiteralPath $path) {
             return $path
         }

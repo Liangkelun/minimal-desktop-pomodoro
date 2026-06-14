@@ -127,7 +127,7 @@ function Edit-TaskDetails([string]$Id) {
     $openLink.Add_Click({
         [string[]]$links = ConvertTo-TaskLinks $linksBox.Text
         if ($links.Count -gt 0) {
-            Open-TaskLinkTarget ([string]$links[0])
+            Open-TaskLinkTarget ([string]$links[0]) $Id $task
         }
         else {
             [System.Windows.Forms.MessageBox]::Show((T "NoTaskLink"), (T "AppTitle")) | Out-Null

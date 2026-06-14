@@ -129,14 +129,15 @@ function Normalize-Settings {
 }
 
 function Load-Settings {
-    if (-not (Test-Path -LiteralPath $script:SettingsFile)) {
+    $settingsFile = Get-AppPath "SettingsFile"
+    if (-not (Test-Path -LiteralPath $settingsFile)) {
         $script:Settings = Get-DefaultSettings
         Save-Settings
         return
     }
 
     try {
-        $raw = Get-Content -LiteralPath $script:SettingsFile -Encoding UTF8 -Raw
+        $raw = Get-Content -LiteralPath $settingsFile -Encoding UTF8 -Raw
         if ([string]::IsNullOrWhiteSpace($raw)) {
             throw "empty settings"
         }
@@ -144,7 +145,7 @@ function Load-Settings {
         Normalize-Settings
     }
     catch {
-        Backup-DataFile $script:SettingsFile "invalid"
+        Backup-DataFile $settingsFile "invalid"
         $script:Settings = Get-DefaultSettings
         Save-Settings
     }
@@ -170,6 +171,6 @@ function Save-Settings {
         }
     }
     Normalize-Settings
-    Write-JsonAtomic $script:SettingsFile $script:Settings
+    Write-JsonAtomic (Get-AppPath "SettingsFile") $script:Settings
 }
 

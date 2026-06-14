@@ -220,18 +220,32 @@ Invoke-Check "Release metadata" {
 Invoke-Check "Module load order" {
     $mainRaw = Get-Content -LiteralPath $mainScript -Encoding UTF8 -Raw
     $expectedModules = @(
+        "AppState.ps1",
         "UiText.ps1",
         "Storage.ps1",
         "SettingsStore.ps1",
+        "TaskModel.ps1",
         "TaskStore.ps1",
+        "TaskQueries.ps1",
+        "TaskOrdering.ps1",
+        "TaskCommands.ps1",
         "TaskDetails.ps1",
         "TaskArchive.ps1",
         "TaskFormat.ps1",
+        "PomodoroRecords.ps1",
+        "PomodoroAudio.ps1",
+        "PomodoroEffects.ps1",
         "PomodoroEngine.ps1",
         "AppMaintenance.ps1",
-        "WindowBehavior.ps1",
+        "UiTimer.ps1",
+        "BottomChrome.ps1",
+        "WindowSize.ps1",
+        "WindowDrag.ps1",
+        "HelpSurface.ps1",
+        "WatermarkMode.ps1",
         "Views.Core.ps1",
         "Views.Task.Controls.ps1",
+        "Views.Task.ListDrawing.ps1",
         "Views.Task.DetailsDialog.ps1",
         "Views.Task.Edit.ps1",
         "Views.Task.ps1",
@@ -253,16 +267,20 @@ Invoke-Check "Module load order" {
 }
 
 Invoke-Check "Architecture boundaries" {
-    Test-FileDoesNotContain (Join-Path $modulesDir "TaskStore.ps1") @(
-        "System.Windows.Forms",
-        "MessageBox",
-        "Render-CurrentView",
-        "Set-Status",
-        "Set-ActiveView",
-        "Update-TimerLabels"
-    ) "TaskStore.ps1 must not directly call UI APIs."
+    foreach ($taskModule in @("TaskModel.ps1", "TaskStore.ps1", "TaskQueries.ps1", "TaskOrdering.ps1", "TaskCommands.ps1")) {
+        Test-FileDoesNotContain (Join-Path $modulesDir $taskModule) @(
+            "System.Windows.Forms",
+            "MessageBox",
+            "Render-CurrentView",
+            "Set-Status",
+            "Set-ActiveView",
+            "Update-TimerLabels"
+        ) "$taskModule must not directly call UI APIs."
+    }
 
     Test-FileDoesNotContain (Join-Path $modulesDir "PomodoroEngine.ps1") @(
+        '$script:PomodorosFile',
+        "System.Windows.Forms",
         "MessageBox",
         "Render-CurrentView",
         "Set-Status",
@@ -270,26 +288,64 @@ Invoke-Check "Architecture boundaries" {
         "Update-TimerLabels"
     ) "PomodoroEngine.ps1 must return state results instead of driving UI."
 
+    Test-FileDoesNotContain (Join-Path $modulesDir "PomodoroRecords.ps1") @(
+        "System.Windows.Forms",
+        "MessageBox",
+        "Render-CurrentView",
+        "Set-Status",
+        "Set-ActiveView",
+        "Update-TimerLabels"
+    ) "PomodoroRecords.ps1 must stay free of UI effects."
+
+    Test-FileDoesNotContain (Join-Path $modulesDir "Storage.ps1") @(
+        '$script:DataDir',
+        '$script:ConfigDir',
+        '$script:BackupDir',
+        '$script:RootDir'
+    ) "Storage.ps1 must use AppState path accessors."
+
+    Test-FileDoesNotContain (Join-Path $modulesDir "SettingsStore.ps1") @(
+        '$script:SettingsFile'
+    ) "SettingsStore.ps1 must use AppState path accessors."
+
+    Test-FileDoesNotContain (Join-Path $modulesDir "TaskStore.ps1") @(
+        '$script:TasksFile'
+    ) "TaskStore.ps1 must use AppState path accessors."
+
     "Business modules respect current UI boundary rules"
 }
 
 Invoke-Check "File size guardrails" {
     $checks = @(
         @{ Path = $mainScript; Max = 600 },
-        @{ Path = Join-Path $supportScriptsDir "Invoke-AutomatedChecks.ps1"; Max = 480 },
-        @{ Path = Join-Path $supportScriptsDir "New-ReleasePackage.ps1"; Max = 260 },
-        @{ Path = Join-Path $modulesDir "TaskStore.ps1"; Max = 500 },
+        @{ Path = Join-Path $supportScriptsDir "Invoke-AutomatedChecks.ps1"; Max = 560 },
+        @{ Path = Join-Path $supportScriptsDir "New-ReleasePackage.ps1"; Max = 300 },
+        @{ Path = Join-Path $modulesDir "AppState.ps1"; Max = 90 },
+        @{ Path = Join-Path $modulesDir "TaskModel.ps1"; Max = 180 },
+        @{ Path = Join-Path $modulesDir "TaskStore.ps1"; Max = 80 },
+        @{ Path = Join-Path $modulesDir "TaskQueries.ps1"; Max = 80 },
+        @{ Path = Join-Path $modulesDir "TaskOrdering.ps1"; Max = 220 },
+        @{ Path = Join-Path $modulesDir "TaskCommands.ps1"; Max = 180 },
         @{ Path = Join-Path $modulesDir "TaskDetails.ps1"; Max = 140 },
         @{ Path = Join-Path $modulesDir "TaskArchive.ps1"; Max = 140 },
         @{ Path = Join-Path $modulesDir "TaskFormat.ps1"; Max = 120 },
-        @{ Path = Join-Path $modulesDir "PomodoroEngine.ps1"; Max = 350 },
+        @{ Path = Join-Path $modulesDir "PomodoroRecords.ps1"; Max = 60 },
+        @{ Path = Join-Path $modulesDir "PomodoroAudio.ps1"; Max = 150 },
+        @{ Path = Join-Path $modulesDir "PomodoroEffects.ps1"; Max = 80 },
+        @{ Path = Join-Path $modulesDir "PomodoroEngine.ps1"; Max = 230 },
         @{ Path = Join-Path $modulesDir "AppMaintenance.ps1"; Max = 160 },
-        @{ Path = Join-Path $modulesDir "WindowBehavior.ps1"; Max = 600 },
+        @{ Path = Join-Path $modulesDir "UiTimer.ps1"; Max = 80 },
+        @{ Path = Join-Path $modulesDir "BottomChrome.ps1"; Max = 120 },
+        @{ Path = Join-Path $modulesDir "WindowSize.ps1"; Max = 120 },
+        @{ Path = Join-Path $modulesDir "WindowDrag.ps1"; Max = 80 },
+        @{ Path = Join-Path $modulesDir "HelpSurface.ps1"; Max = 160 },
+        @{ Path = Join-Path $modulesDir "WatermarkMode.ps1"; Max = 280 },
         @{ Path = Join-Path $modulesDir "UiText.ps1"; Max = 300 },
         @{ Path = Join-Path $modulesDir "SettingsStore.ps1"; Max = 220 },
         @{ Path = Join-Path $modulesDir "Storage.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "Views.Core.ps1"; Max = 180 },
-        @{ Path = Join-Path $modulesDir "Views.Task.Controls.ps1"; Max = 260 },
+        @{ Path = Join-Path $modulesDir "Views.Task.Controls.ps1"; Max = 210 },
+        @{ Path = Join-Path $modulesDir "Views.Task.ListDrawing.ps1"; Max = 130 },
         @{ Path = Join-Path $modulesDir "Views.Task.DetailsDialog.ps1"; Max = 230 },
         @{ Path = Join-Path $modulesDir "Views.Task.Edit.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "Views.Task.ps1"; Max = 260 },

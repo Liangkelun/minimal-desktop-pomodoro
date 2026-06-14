@@ -3,7 +3,7 @@
 function Get-DefaultSettings {
     return [pscustomobject]@{
         TopMost = $true
-        Opacity = 0.50
+        Opacity = 1.00
         TaskFontSize = 15.0
         WorkMinutes = 25
         ShortBreakMinutes = 5
@@ -25,6 +25,7 @@ function Get-DefaultSettings {
         DailyArchiveHour = 0
         DailyArchiveMinute = 0
         LastDailyArchiveAt = $null
+        DesktopShortcutPrompted = $false
         WindowX = $null
         WindowY = $null
         WindowWidth = 300
@@ -99,6 +100,7 @@ function Normalize-Settings {
     try { $script:Settings.BreakMusic = [bool]$script:Settings.BreakMusic } catch { $script:Settings.BreakMusic = $defaults.BreakMusic }
     try { $script:Settings.WorkMusicLoop = [bool]$script:Settings.WorkMusicLoop } catch { $script:Settings.WorkMusicLoop = $defaults.WorkMusicLoop }
     try { $script:Settings.BreakMusicLoop = [bool]$script:Settings.BreakMusicLoop } catch { $script:Settings.BreakMusicLoop = $defaults.BreakMusicLoop }
+    try { $script:Settings.DesktopShortcutPrompted = [bool]$script:Settings.DesktopShortcutPrompted } catch { $script:Settings.DesktopShortcutPrompted = $defaults.DesktopShortcutPrompted }
     $defaultAudioFiles = @{
         StartSoundFile = Get-DefaultAudioPath "focus-start.wav"
         EndSoundFile = Get-DefaultAudioPath "break-start.wav"
@@ -156,6 +158,7 @@ function Load-Settings {
 function Reset-SettingsToDefaults {
     $language = "zh-CN"
     $lastDailyArchiveAt = $null
+    $desktopShortcutPrompted = $false
     if ($null -ne $script:Settings) {
         if ($script:Settings.PSObject.Properties.Name -contains "Language") {
             $language = [string]$script:Settings.Language
@@ -163,11 +166,15 @@ function Reset-SettingsToDefaults {
         if ($script:Settings.PSObject.Properties.Name -contains "LastDailyArchiveAt") {
             $lastDailyArchiveAt = $script:Settings.LastDailyArchiveAt
         }
+        if ($script:Settings.PSObject.Properties.Name -contains "DesktopShortcutPrompted") {
+            $desktopShortcutPrompted = [bool]$script:Settings.DesktopShortcutPrompted
+        }
     }
 
     $script:Settings = Get-DefaultSettings
     $script:Settings.Language = $language
     $script:Settings.LastDailyArchiveAt = $lastDailyArchiveAt
+    $script:Settings.DesktopShortcutPrompted = $desktopShortcutPrompted
     if ($null -ne $script:Form) {
         $script:Settings.WindowWidth = [int]$script:Form.Width
         $script:Settings.WindowHeight = [int]$script:Form.Height

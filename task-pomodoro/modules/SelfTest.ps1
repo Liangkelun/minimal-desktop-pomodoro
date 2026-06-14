@@ -153,6 +153,12 @@ function Invoke-SelfTest {
         if ($quotedArg -ne '"D:\has space\文档.vbs"') {
             throw "selftest failed: process argument quoting"
         }
+        if ((Get-DesktopShortcutName) -notlike "*.lnk") {
+            throw "selftest failed: desktop shortcut name"
+        }
+        if (-not (Test-Path -LiteralPath (Get-DesktopShortcutInstallerPath) -PathType Leaf)) {
+            throw "selftest failed: desktop shortcut installer path"
+        }
         $decodedCommand = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String((ConvertTo-EncodedPowerShellCommand "Write-Output 'ok'")))
         if ($decodedCommand -ne "Write-Output 'ok'") { throw "selftest failed: encoded powershell command" }
         $relaunchScript = New-AppRelaunchScript 12345 (Join-Path $script:DataDir "restart-selftest.log")
@@ -163,7 +169,7 @@ function Invoke-SelfTest {
         if ($mutexName -notlike "Local\MinimalDesktopPomodoro-selftest-*") {
             throw "selftest failed: scoped mutex name"
         }
-        foreach ($requiredTextKey in @("NoOpenTasks", "NoTodayTasks", "HelpShortcutsText", "TaskFontSize", "Close")) {
+        foreach ($requiredTextKey in @("NoOpenTasks", "NoTodayTasks", "HelpShortcutsText", "TaskFontSize", "Close", "DesktopShortcutPromptTitle", "DesktopShortcutPromptBody", "DesktopShortcutMenu")) {
             if ([string]::IsNullOrWhiteSpace((T $requiredTextKey))) {
                 throw "selftest failed: required ui text"
             }

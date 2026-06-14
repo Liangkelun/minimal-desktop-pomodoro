@@ -146,6 +146,7 @@ function Show-HelpMenu([System.Windows.Forms.Control]$Owner) {
     $update.Text = T "HelpUpdate"
     Add-HelpActionMenuItem $update "RestartApp" { Restart-TaskPomodoroApp } $true
     Add-HelpActionMenuItem $update "OpenAppFolder" { Open-AppFolder } $true
+    Add-HelpActionMenuItem $update "DesktopShortcutMenu" { Invoke-DesktopShortcutInstallFromMenu | Out-Null } (Test-DesktopShortcutCanInstall)
     Add-HelpActionMenuItem $update "UpdateFromGit" { Invoke-GitUpdateAndRestart } (Test-GitUpdateEnabled)
     Add-HelpMenuItem $update "UpdateInfo" "HelpUpdate" "UpdateInfoText"
     $menu.Items.Add($update) | Out-Null

@@ -238,6 +238,7 @@ Invoke-Check "Module load order" {
         "PomodoroEngine.ps1",
         "AppRelaunch.ps1",
         "AppMaintenance.ps1",
+        "DesktopShortcut.ps1",
         "UiTimer.ps1",
         "BottomChrome.ps1",
         "WindowSize.ps1",
@@ -336,6 +337,7 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "PomodoroEngine.ps1"; Max = 230 },
         @{ Path = Join-Path $modulesDir "AppRelaunch.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "AppMaintenance.ps1"; Max = 160 },
+        @{ Path = Join-Path $modulesDir "DesktopShortcut.ps1"; Max = 230 },
         @{ Path = Join-Path $modulesDir "UiTimer.ps1"; Max = 80 },
         @{ Path = Join-Path $modulesDir "BottomChrome.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "WindowSize.ps1"; Max = 120 },
@@ -356,7 +358,7 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "Views.More.ps1"; Max = 140 },
         @{ Path = Join-Path $modulesDir "Views.Settings.ps1"; Max = 260 },
         @{ Path = Join-Path $modulesDir "Views.Settings.Controls.ps1"; Max = 240 },
-        @{ Path = Join-Path $modulesDir "SelfTest.ps1"; Max = 390 }
+        @{ Path = Join-Path $modulesDir "SelfTest.ps1"; Max = 430 }
     )
     $details = foreach ($check in $checks) {
         Test-MaxLineCount ([string]$check.Path) ([int]$check.Max)

@@ -1,0 +1,25 @@
+# Runtime data and personal state
+task-pomodoro/data/*.json
+task-pomodoro/data/*.jsonl
+task-pomodoro/data/*.log
+task-pomodoro/data/backups/
+task-pomodoro/data/logs/
+task-pomodoro/data/test-results/
+task-pomodoro/config/settings.json
+task-pomodoro/launch.log
+task-pomodoro/update.log
+dist/
+task-pomodoro/dist/
+
+# Local OS/editor noise
+Thumbs.db
+Desktop.ini
+.DS_Store
+*.tmp
+*.bak
+*.swp
+
+# PowerShell / local build noise
+*.ps1xml
+*.pssc
+*.psrc

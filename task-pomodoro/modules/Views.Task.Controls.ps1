@@ -95,7 +95,7 @@ function Hide-TaskTitlePreview {
     $script:TaskPreviewPanel = $null
 }
 
-function Open-TaskLinkTarget([string]$Target) {
+function Open-TaskLinkTarget([object]$Target) {
     $target = Resolve-TaskLinkTarget $Target
     if ([string]::IsNullOrWhiteSpace([string]$target.OpenTarget)) {
         Write-TaskLinkDebug "OpenTargetBlank" "" $Target $null

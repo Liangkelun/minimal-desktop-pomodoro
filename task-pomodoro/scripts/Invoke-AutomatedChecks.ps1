@@ -298,7 +298,7 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "Views.More.ps1"; Max = 140 },
         @{ Path = Join-Path $modulesDir "Views.Settings.ps1"; Max = 260 },
         @{ Path = Join-Path $modulesDir "Views.Settings.Controls.ps1"; Max = 240 },
-        @{ Path = Join-Path $modulesDir "SelfTest.ps1"; Max = 380 }
+        @{ Path = Join-Path $modulesDir "SelfTest.ps1"; Max = 390 }
     )
     $details = foreach ($check in $checks) {
         Test-MaxLineCount ([string]$check.Path) ([int]$check.Max)

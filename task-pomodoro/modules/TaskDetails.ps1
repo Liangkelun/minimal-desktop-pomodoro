@@ -29,8 +29,15 @@ function ConvertTo-TaskLinks([object]$Value) {
     return ,([string[]]$links.ToArray())
 }
 
-function Resolve-TaskLinkTarget([string]$Target) {
-    $target = ConvertTo-TaskLinkText $Target
+function Resolve-TaskLinkTarget([object]$Target) {
+    if ($null -ne $Target -and ($Target.PSObject.Properties.Name -contains "OpenTarget")) {
+        return Resolve-TaskLinkTarget ([string]$Target.OpenTarget)
+    }
+
+    $target = ConvertTo-TaskLinkText ([string]$Target)
+    if ($target -match '^@\{OpenTarget=(.*); Exists=(True|False); IsPath=(True|False)\}$') {
+        $target = ConvertTo-TaskLinkText ([string]$Matches[1])
+    }
     if ([string]::IsNullOrWhiteSpace($target)) {
         return [pscustomobject]@{ OpenTarget = ""; Exists = $false; IsPath = $false }
     }

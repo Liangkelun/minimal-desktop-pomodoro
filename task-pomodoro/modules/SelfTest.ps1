@@ -190,6 +190,11 @@ function Invoke-SelfTest {
                     throw "selftest failed: resolve long local task link"
                 }
             }
+            $resolvedObject = Resolve-TaskLinkTarget ([pscustomobject]@{ OpenTarget = $longLinkFile; Exists = $true; IsPath = $true })
+            $resolvedObjectText = Resolve-TaskLinkTarget ("@{OpenTarget=$longLinkFile; Exists=True; IsPath=True}")
+            if ([string]$resolvedObject.OpenTarget -ne $longLinkFile -or [string]$resolvedObjectText.OpenTarget -ne $longLinkFile) {
+                throw "selftest failed: resolve parsed task link target"
+            }
         }
         finally {
             Remove-Item -LiteralPath (Join-Path $script:DataDir "__selftest__") -Recurse -Force -ErrorAction SilentlyContinue

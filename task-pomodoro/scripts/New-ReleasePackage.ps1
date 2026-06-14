@@ -194,7 +194,7 @@ else {
     $OutputDir = [System.IO.Path]::GetFullPath($OutputDir)
 }
 
-$packageName = "task-pomodoro-v$Version"
+$packageName = "minimal-desktop-pomodoro-v$Version"
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "TaskPomodoroRelease"
 New-RequiredDirectory $tempRoot
 $runRoot = Join-Path $tempRoot ("run-" + [guid]::NewGuid().ToString("N"))

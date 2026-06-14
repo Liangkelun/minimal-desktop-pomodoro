@@ -208,7 +208,7 @@ Invoke-Check "Release metadata" {
         throw "VERSION must be semver-like. Current value: $version"
     }
     $gitignore = Get-Content -LiteralPath $gitignoreFile -Encoding UTF8 -Raw
-    foreach ($requiredIgnore in @("task-pomodoro/data/*.json", "task-pomodoro/data/*.jsonl", "task-pomodoro/data/*.log", "task-pomodoro/config/settings.json", "dist/")) {
+    foreach ($requiredIgnore in @("task-pomodoro/data/", "task-pomodoro/config/", "task-pomodoro/launch.log", "task-pomodoro/update.log", "dist/")) {
         if ($gitignore -notlike "*$requiredIgnore*") {
             throw ".gitignore missing runtime ignore pattern: $requiredIgnore"
         }

@@ -2,7 +2,8 @@ param(
     [string]$Version = "",
     [string]$OutputDir = "",
     [switch]$SkipValidation,
-    [switch]$KeepStaging
+    [switch]$KeepStaging,
+    [switch]$ChineseFriendly
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,6 +58,128 @@ function Copy-MatchingFiles([string]$SourceDir, [string]$DestinationDir, [string
     return $copied
 }
 
+function ConvertFrom-Base64Text([string]$Value) {
+    return [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($Value))
+}
+
+function New-RootLauncher([string]$PackageRoot, [string]$FileName) {
+    $path = Join-Path $PackageRoot $FileName
+    $content = @(
+        "Option Explicit",
+        "",
+        "Dim shell, fso, baseDir, appDir, launcher",
+        "Set shell = CreateObject(""WScript.Shell"")",
+        "Set fso = CreateObject(""Scripting.FileSystemObject"")",
+        "",
+        "baseDir = fso.GetParentFolderName(WScript.ScriptFullName)",
+        "appDir = fso.BuildPath(baseDir, ""task-pomodoro"")",
+        "launcher = fso.BuildPath(appDir, ""StartTaskPomodoro.vbs"")",
+        "",
+        "If Not fso.FileExists(launcher) Then",
+        "    MsgBox ""Missing launcher:"" & vbCrLf & launcher, 48, ""Minimal Desktop Pomodoro""",
+        "Else",
+        "    shell.Run Chr(34) & launcher & Chr(34), 1, False",
+        "End If"
+    )
+    Set-Content -LiteralPath $path -Value $content -Encoding ASCII
+}
+
+function Get-CSharpCompilerPath {
+    $candidates = @(
+        (Join-Path $env:WINDIR "Microsoft.NET\Framework64\v4.0.30319\csc.exe"),
+        (Join-Path $env:WINDIR "Microsoft.NET\Framework\v4.0.30319\csc.exe"),
+        (Join-Path $env:WINDIR "Microsoft.NET\Framework64\v3.5\csc.exe"),
+        (Join-Path $env:WINDIR "Microsoft.NET\Framework\v3.5\csc.exe")
+    )
+    foreach ($candidate in $candidates) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            return $candidate
+        }
+    }
+    $command = Get-Command csc.exe -ErrorAction SilentlyContinue
+    if ($null -ne $command) {
+        return [string]$command.Source
+    }
+    return ""
+}
+
+function New-RootExeLauncher([string]$PackageRoot, [string]$FileName, [string]$IconPath) {
+    $compiler = Get-CSharpCompilerPath
+    if ([string]::IsNullOrWhiteSpace($compiler)) {
+        throw "Missing C# compiler for root launcher."
+    }
+    if (-not (Test-Path -LiteralPath $IconPath -PathType Leaf)) {
+        throw "Missing launcher icon: $IconPath"
+    }
+
+    $sourcePath = Join-Path $PackageRoot "__root_launcher.cs"
+    $outputPath = Join-Path $PackageRoot $FileName
+    $source = @(
+        "using System;",
+        "using System.Diagnostics;",
+        "using System.IO;",
+        "using System.Windows.Forms;",
+        "",
+        "internal static class Program",
+        "{",
+        "    [STAThread]",
+        "    private static int Main()",
+        "    {",
+        "        string baseDir = AppDomain.CurrentDomain.BaseDirectory;",
+        "        string launcher = Path.Combine(Path.Combine(baseDir, ""task-pomodoro""), ""StartTaskPomodoro.vbs"");",
+        "        if (!File.Exists(launcher))",
+        "        {",
+        "            MessageBox.Show(""Missing launcher:\r\n"" + launcher, ""Minimal Desktop Pomodoro"", MessageBoxButtons.OK, MessageBoxIcon.Warning);",
+        "            return 1;",
+        "        }",
+        "        ProcessStartInfo startInfo = new ProcessStartInfo();",
+        "        startInfo.FileName = launcher;",
+        "        startInfo.WorkingDirectory = Path.GetDirectoryName(launcher);",
+        "        startInfo.UseShellExecute = true;",
+        "        Process.Start(startInfo);",
+        "        return 0;",
+        "    }",
+        "}"
+    )
+    try {
+        Set-Content -LiteralPath $sourcePath -Value $source -Encoding ASCII
+        $output = & $compiler @(
+            "/nologo",
+            "/target:winexe",
+            "/platform:anycpu",
+            "/reference:System.dll",
+            "/reference:System.Windows.Forms.dll",
+            "/win32icon:$IconPath",
+            "/out:$outputPath",
+            $sourcePath
+        ) 2>&1
+        if ($LASTEXITCODE -ne 0) {
+            throw "Root launcher compile failed:`n$(@($output) -join "`n")"
+        }
+        if (-not (Test-Path -LiteralPath $outputPath -PathType Leaf)) {
+            throw "Root launcher was not created: $outputPath"
+        }
+    }
+    finally {
+        if (Test-Path -LiteralPath $sourcePath -PathType Leaf) {
+            Remove-Item -LiteralPath $sourcePath -Force
+        }
+    }
+}
+
+function New-ChineseQuickStart([string]$PackageRoot, [string]$FileName) {
+    $lines = @(
+        (ConvertFrom-Base64Text "5p6B566A5qGM6Z2i55Wq6IyE6ZKfIOS9v+eUqOivtOaYjg=="),
+        "",
+        (ConvertFrom-Base64Text "MS4g6K+35YWI6Kej5Y6L5pW05Liq5paH5Lu25aS544CC"),
+        (ConvertFrom-Base64Text "Mi4g5Y+M5Ye74oCc5Y+M5Ye75ZCv5YqoIOaegeeugOahjOmdoueVquiMhOmSny5leGXigJ3lkK/liqjnqIvluo/jgII="),
+        (ConvertFrom-Base64Text "5aaC5p6c57O757uf5oum5oiqIGV4Ze+8jOS5n+WPr+S7peWPjOWHu+KAnOWPjOWHu+WQr+WKqCDmnoHnroDmoYzpnaLnlarojITpkp8udmJz4oCd44CC"),
+        (ConvertFrom-Base64Text "My4g6aaW5qyh5ZCv5Yqo5pe277yM5Y+v5Lul6YCJ5oup5re75Yqg5qGM6Z2i5b+r5o235pa55byP44CC"),
+        (ConvertFrom-Base64Text "NC4g6K+35LiN6KaB5Y+q56e75Yqo5ZCv5Yqo5paH5Lu277yM5L+d5oyB5pW05Liq5paH5Lu25aS55a6M5pW044CC")
+    )
+    Set-Content -LiteralPath (Join-Path $PackageRoot $FileName) -Value $lines -Encoding UTF8
+}
+
 function Remove-SafeTempDirectory([string]$Path) {
     if ([string]::IsNullOrWhiteSpace($Path) -or -not (Test-Path -LiteralPath $Path)) {
         return
@@ -108,7 +231,7 @@ function Assert-NoRuntimeState([string]$PackageRoot) {
     }
 }
 
-function Test-ZipContents([string]$ZipPath, [string]$PackageName) {
+function Test-ZipContents([string]$ZipPath, [string]$PackageName, [string]$RootLauncherName, [string]$RootExeLauncherName, [string]$QuickStartName) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [System.IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
@@ -123,6 +246,15 @@ function Test-ZipContents([string]$ZipPath, [string]$PackageName) {
             "$PackageName/task-pomodoro/modules/TaskStore.ps1",
             "$PackageName/task-pomodoro/scripts/Invoke-AutomatedChecks.ps1"
         )
+        if (-not [string]::IsNullOrWhiteSpace($RootLauncherName)) {
+            $required += "$PackageName/$RootLauncherName"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($RootExeLauncherName)) {
+            $required += "$PackageName/$RootExeLauncherName"
+        }
+        if (-not [string]::IsNullOrWhiteSpace($QuickStartName)) {
+            $required += "$PackageName/$QuickStartName"
+        }
 
         foreach ($entry in $required) {
             if ($entries -notcontains $entry) {
@@ -195,6 +327,15 @@ else {
 }
 
 $packageName = "minimal-desktop-pomodoro-v$Version"
+$rootLauncherName = "Start Minimal Desktop Pomodoro.vbs"
+$rootExeLauncherName = ""
+$quickStartName = ""
+if ($ChineseFriendly) {
+    $packageName = (ConvertFrom-Base64Text "5p6B566A5qGM6Z2i55Wq6IyE6ZKfLXY=") + $Version
+    $rootLauncherName = ConvertFrom-Base64Text "5Y+M5Ye75ZCv5YqoIOaegeeugOahjOmdoueVquiMhOmSny52YnM="
+    $rootExeLauncherName = ConvertFrom-Base64Text "5Y+M5Ye75ZCv5YqoIOaegeeugOahjOmdoueVquiMhOmSny5leGU="
+    $quickStartName = ConvertFrom-Base64Text "5L2/55So6K+05piOLnR4dA=="
+}
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "TaskPomodoroRelease"
 New-RequiredDirectory $tempRoot
 $runRoot = Join-Path $tempRoot ("run-" + [guid]::NewGuid().ToString("N"))
@@ -209,6 +350,13 @@ try {
     Copy-RequiredFile (Join-Path $workspaceRoot "CHANGELOG.md") (Join-Path $packageRoot "CHANGELOG.md")
     Copy-RequiredFile (Join-Path $workspaceRoot "LICENSE") (Join-Path $packageRoot "LICENSE")
     Copy-RequiredDirectory (Join-Path $workspaceRoot "docs") (Join-Path $packageRoot "docs")
+    New-RootLauncher $packageRoot $rootLauncherName
+    if (-not [string]::IsNullOrWhiteSpace($rootExeLauncherName)) {
+        New-RootExeLauncher $packageRoot $rootExeLauncherName (Join-Path $appRoot "assets\icon\task-pomodoro-g-desktop.ico")
+    }
+    if (-not [string]::IsNullOrWhiteSpace($quickStartName)) {
+        New-ChineseQuickStart $packageRoot $quickStartName
+    }
 
     Copy-RequiredFile (Join-Path $appRoot "TaskPomodoro.ps1") (Join-Path $appPackageRoot "TaskPomodoro.ps1")
     Copy-RequiredFile (Join-Path $appRoot "StartTaskPomodoro.vbs") (Join-Path $appPackageRoot "StartTaskPomodoro.vbs")
@@ -253,7 +401,7 @@ try {
         throw "Release zip is empty: $zipPath"
     }
 
-    $entryCount = Test-ZipContents $zipPath $packageName
+    $entryCount = Test-ZipContents $zipPath $packageName $rootLauncherName $rootExeLauncherName $quickStartName
     Write-Host "[PASS] Release package"
     Write-Host "Package: $zipPath"
     Write-Host "Entries: $entryCount"

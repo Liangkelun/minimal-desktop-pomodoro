@@ -321,7 +321,7 @@ Invoke-Check "File size guardrails" {
     $checks = @(
         @{ Path = $mainScript; Max = 600 },
         @{ Path = Join-Path $supportScriptsDir "Invoke-AutomatedChecks.ps1"; Max = 560 },
-        @{ Path = Join-Path $supportScriptsDir "New-ReleasePackage.ps1"; Max = 300 },
+        @{ Path = Join-Path $supportScriptsDir "New-ReleasePackage.ps1"; Max = 440 },
         @{ Path = Join-Path $modulesDir "AppState.ps1"; Max = 90 },
         @{ Path = Join-Path $modulesDir "TaskModel.ps1"; Max = 180 },
         @{ Path = Join-Path $modulesDir "TaskStore.ps1"; Max = 80 },

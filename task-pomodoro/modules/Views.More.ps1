@@ -15,28 +15,10 @@ function Render-MoreView {
     Add-BottomChromeTracking $done
     $panel.Controls.Add($done)
 
-    $settings = New-Button (T "Settings") 260
-    $settings.Add_Click({ Set-ActiveView "settings" })
-    Add-BottomChromeTracking $settings
-    $panel.Controls.Add($settings)
-
     $check = New-Button (T "DataCheck") 260
     $check.Add_Click({ Invoke-DataCheck })
     Add-BottomChromeTracking $check
     $panel.Controls.Add($check)
-
-    $help = New-Button (T "Help") 260
-    $help.Add_MouseUp({
-        param($sender, $eventArgs)
-        if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Right) {
-            Show-HelpMenu $sender
-        }
-        else {
-            Show-HelpTopic "HelpTitle" "HelpText"
-        }
-    })
-    Add-BottomChromeTracking $help
-    $panel.Controls.Add($help)
 
     $script:ContentPanel.Controls.Add($panel)
 }

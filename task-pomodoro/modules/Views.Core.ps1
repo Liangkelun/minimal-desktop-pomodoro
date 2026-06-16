@@ -87,6 +87,7 @@ function Render-CurrentView {
     $script:TaskInputBox = $null
     $script:StartButton = $null
     $script:PauseButton = $null
+    $script:TaskListBox = $null
 
     switch ($script:ActiveView) {
         "tasks" { Render-TaskView "tasks" }
@@ -94,7 +95,7 @@ function Render-CurrentView {
         "timer" { Render-TimerView }
         "more" { Render-MoreView }
         "done" { Render-DoneView }
-        "settings" { Render-SettingsView }
+        "settings" { Ensure-TaskRowsVisible 11; Render-SettingsView }
         default { Render-TaskView "today" }
     }
     Update-BottomChromeVisibility

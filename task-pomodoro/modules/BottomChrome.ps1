@@ -7,7 +7,7 @@ function Set-BottomChromeVisible([bool]$Visible) {
     $script:BottomChromeVisible = $Visible
 
     if ($Visible) {
-        $script:NavRowStyle.Height = 30
+        $script:NavRowStyle.Height = 32
         if ($null -ne $script:TaskInputRowStyle) {
             $script:TaskInputRowStyle.Height = 32
         }

@@ -30,10 +30,10 @@ function Get-AppScopedMutexName([string]$Suffix) {
     return "Local\MinimalDesktopPomodoro-$Suffix-$(Get-AppScopeHash)"
 }
 
-function Invoke-WithNamedMutex([string]$Name, [scriptblock]$Action) {
+function Invoke-WithNamedMutex([string]$Name, [scriptblock]$Action, [int]$TimeoutMilliseconds = 5000) {
     $mutex = New-Object System.Threading.Mutex($false, $Name)
     try {
-        if (-not $mutex.WaitOne(5000)) {
+        if (-not $mutex.WaitOne($TimeoutMilliseconds)) {
             throw "Timed out waiting for lock: $Name"
         }
         & $Action
@@ -52,17 +52,27 @@ function Ensure-Property([object]$Object, [string]$Name, [object]$Value) {
 
 function Backup-DataFile([string]$Path, [string]$Reason) {
     if (Test-Path -LiteralPath $Path) {
-        $stamp = (Get-Date).ToString("yyyyMMdd-HHmmss")
+        $stamp = (Get-Date).ToString("yyyyMMdd-HHmmss-fff")
         $name = [System.IO.Path]::GetFileName($Path)
         $dest = Join-Path (Get-AppPath "BackupDir") "$name.$stamp.$Reason.bak"
         Copy-Item -LiteralPath $Path -Destination $dest -Force
     }
 }
 
+function ConvertTo-StorageJson([object]$Data) {
+    if ($Data -is [array]) {
+        $items = @($Data)
+        if ($items.Count -eq 0) { return "[]" }
+        $parts = @($items | ForEach-Object { ConvertTo-Json -InputObject $_ -Depth 12 })
+        return "[`r`n$($parts -join ",`r`n")`r`n]"
+    }
+    return (ConvertTo-Json -InputObject $Data -Depth 12)
+}
+
 function Write-JsonAtomic([string]$Path, [object]$Data) {
     Invoke-WithNamedMutex (Get-AppScopedMutexName "data") {
         $tmp = "$Path.$PID.$([guid]::NewGuid().ToString('N')).tmp"
-        $json = ConvertTo-Json -InputObject $Data -Depth 12
+        $json = ConvertTo-StorageJson $Data
         if ([string]::IsNullOrWhiteSpace($json)) {
             $json = "[]"
         }

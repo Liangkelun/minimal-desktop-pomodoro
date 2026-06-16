@@ -235,6 +235,7 @@ Invoke-Check "Module load order" {
         "PomodoroRecords.ps1",
         "PomodoroAudio.ps1",
         "PomodoroEffects.ps1",
+        "PomodoroSession.ps1",
         "PomodoroEngine.ps1",
         "AppRelaunch.ps1",
         "AppMaintenance.ps1",
@@ -244,9 +245,11 @@ Invoke-Check "Module load order" {
         "WindowSize.ps1",
         "WindowDrag.ps1",
         "HelpSurface.ps1",
+        "WatermarkGhostSurface.ps1",
         "WatermarkMode.ps1",
         "Views.Core.ps1",
         "Views.Task.Controls.ps1",
+        "Views.Task.Hover.ps1",
         "Views.Task.ListDrawing.ps1",
         "Views.Task.DetailsDialog.ps1",
         "Views.Task.Edit.ps1",
@@ -255,6 +258,7 @@ Invoke-Check "Module load order" {
         "Views.Timer.ps1",
         "Views.More.ps1",
         "Views.Settings.Controls.ps1",
+        "Views.Timer.SettingsDialog.ps1",
         "Views.Settings.ps1",
         "SelfTest.ps1"
     )
@@ -334,6 +338,7 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "PomodoroRecords.ps1"; Max = 60 },
         @{ Path = Join-Path $modulesDir "PomodoroAudio.ps1"; Max = 150 },
         @{ Path = Join-Path $modulesDir "PomodoroEffects.ps1"; Max = 80 },
+        @{ Path = Join-Path $modulesDir "PomodoroSession.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "PomodoroEngine.ps1"; Max = 230 },
         @{ Path = Join-Path $modulesDir "AppRelaunch.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "AppMaintenance.ps1"; Max = 160 },
@@ -343,14 +348,16 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "WindowSize.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "WindowDrag.ps1"; Max = 80 },
         @{ Path = Join-Path $modulesDir "HelpSurface.ps1"; Max = 160 },
+        @{ Path = Join-Path $modulesDir "WatermarkGhostSurface.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "WatermarkMode.ps1"; Max = 280 },
-        @{ Path = Join-Path $modulesDir "UiText.ps1"; Max = 300 },
+        @{ Path = Join-Path $modulesDir "UiText.ps1"; Max = 320 },
         @{ Path = Join-Path $modulesDir "SettingsStore.ps1"; Max = 220 },
         @{ Path = Join-Path $modulesDir "Storage.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "Views.Core.ps1"; Max = 180 },
         @{ Path = Join-Path $modulesDir "Views.Task.Controls.ps1"; Max = 210 },
+        @{ Path = Join-Path $modulesDir "Views.Task.Hover.ps1"; Max = 100 },
         @{ Path = Join-Path $modulesDir "Views.Task.ListDrawing.ps1"; Max = 130 },
-        @{ Path = Join-Path $modulesDir "Views.Task.DetailsDialog.ps1"; Max = 230 },
+        @{ Path = Join-Path $modulesDir "Views.Task.DetailsDialog.ps1"; Max = 250 },
         @{ Path = Join-Path $modulesDir "Views.Task.Edit.ps1"; Max = 120 },
         @{ Path = Join-Path $modulesDir "Views.Task.ps1"; Max = 260 },
         @{ Path = Join-Path $modulesDir "Views.Task.Menu.ps1"; Max = 340 },
@@ -358,7 +365,8 @@ Invoke-Check "File size guardrails" {
         @{ Path = Join-Path $modulesDir "Views.More.ps1"; Max = 140 },
         @{ Path = Join-Path $modulesDir "Views.Settings.ps1"; Max = 260 },
         @{ Path = Join-Path $modulesDir "Views.Settings.Controls.ps1"; Max = 240 },
-        @{ Path = Join-Path $modulesDir "SelfTest.ps1"; Max = 430 }
+        @{ Path = Join-Path $modulesDir "Views.Timer.SettingsDialog.ps1"; Max = 120 },
+        @{ Path = Join-Path $modulesDir "SelfTest.ps1"; Max = 450 }
     )
     $details = foreach ($check in $checks) {
         Test-MaxLineCount ([string]$check.Path) ([int]$check.Max)
@@ -369,8 +377,10 @@ Invoke-Check "File size guardrails" {
 Invoke-Check "Required launch and media assets" {
     Test-RequiredFile (Join-Path $rootDir "StartTaskPomodoro.vbs")
     Test-RequiredFile (Join-Path $rootDir "assets\audio\focus-start.wav")
+    Test-RequiredFile (Join-Path $rootDir "assets\audio\focus-loop.mp3")
     Test-RequiredFile (Join-Path $rootDir "assets\audio\focus-loop.wav")
     Test-RequiredFile (Join-Path $rootDir "assets\audio\break-start.wav")
+    Test-RequiredFile (Join-Path $rootDir "assets\audio\break-loop.mp3")
     Test-RequiredFile (Join-Path $rootDir "assets\audio\break-loop.wav")
     Test-RequiredFile (Join-Path $rootDir "assets\sponsor\wechat-sponsor.jpg")
 

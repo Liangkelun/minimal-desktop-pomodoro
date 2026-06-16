@@ -1,4 +1,4 @@
-# 自动化测试与可维护性安排
+﻿# 自动化测试与可维护性安排
 
 最后更新：2026-06-14
 
@@ -65,18 +65,18 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\task-pomodoro\scripts\Invo
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPomodoro.ps1 -SelfTest
 ```
 
-当前自测覆盖任务过滤、今日安排、排序、插入、编辑、默认动作、列表选择、窗口行数、水印模式和归档。自测会保存并恢复用户数据，不能留下 `__selftest` 任务。
+当前自测覆盖任务过滤、今日安排、排序、插入、编辑、默认动作、列表选择、窗口行数、虚化模式和归档。自测会保存并恢复用户数据，不能留下 `__selftest` 任务。
 
 ### L4 手动冒烟
 
-涉及 UI 布局、水印穿透、窗口拖动、音频播放和长期常驻时，仍需要手动冒烟：
+涉及 UI 布局、虚化穿透、窗口拖动、音频播放和长期常驻时，仍需要手动冒烟：
 
 1. 启动应用。
 2. 添加一个任务。
 3. 安排到今日。
 4. 从今日任务启动番茄钟。
 5. 暂停、继续、停止。
-6. 进入和退出水印模式。
+6. 进入和退出虚化模式。
 7. 调整 1 行和 10 行窗口高度。
 8. 关闭并重开，确认数据保留。
 
@@ -107,7 +107,8 @@ powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPom
 - `modules/WindowSize.ps1` 放单行/多行窗口高度和尺寸按钮。
 - `modules/WindowDrag.ps1` 放窗口拖动。
 - `modules/HelpSurface.ps1` 放帮助按钮、帮助菜单和帮助弹窗。
-- `modules/WatermarkMode.ps1` 放水印模式、穿透和水印退出点。
+- `modules/WatermarkGhostSurface.ps1` 放虚化状态的透明背景文字层。
+- `modules/WatermarkMode.ps1` 放虚化模式、穿透和虚化退出点。
 - `modules/Views.Core.ps1` 放状态栏、通用按钮、导航和结果对象 UI 处理。
 - `modules/Views.Task.ps1` 放任务列表渲染和列表交互入口。
 - `modules/Views.Task.Controls.ps1` 放任务预览、链接打开和详情输入控件。
@@ -119,7 +120,7 @@ powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPom
 资源策略：
 
 - 普通状态 UI 定时器使用 1000ms，匹配秒级倒计时。
-- 水印模式临时切到 250ms，用于保持穿透退出点的响应。
+- 虚化模式临时切到 250ms，用于保持穿透退出点的响应。
 - 鼠标显隐依赖 MouseMove/MouseEnter 事件，避免用高频定时器轮询普通交互。
 
 ## 后续可维护性路线

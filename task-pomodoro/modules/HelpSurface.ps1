@@ -16,11 +16,8 @@ function Ensure-HelpButton {
     $button.Visible = $false
     $button.Add_MouseUp({
         param($sender, $eventArgs)
-        if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Right) {
+        if ($eventArgs.Button -in @([System.Windows.Forms.MouseButtons]::Left, [System.Windows.Forms.MouseButtons]::Right)) {
             Show-HelpMenu $sender
-        }
-        elseif ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
-            Show-HelpTopic "HelpTitle" "HelpText"
         }
     })
 
@@ -141,6 +138,7 @@ function Show-HelpMenu([System.Windows.Forms.Control]$Owner) {
     Add-HelpMenuItem $menu "HelpDiagram" "HelpDiagram" "HelpDiagramText"
     Add-HelpMenuItem $menu "HelpRules" "HelpRules" "HelpRulesText"
     Add-HelpMenuItem $menu "HelpShortcuts" "HelpShortcuts" "HelpShortcutsText"
+    Add-HelpActionMenuItem $menu "Settings" { Set-ActiveView "settings" } $true
     $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
     $update = New-Object System.Windows.Forms.ToolStripMenuItem
     $update.Text = T "HelpUpdate"

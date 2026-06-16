@@ -38,7 +38,7 @@ function Timer-Tick {
         $remaining = [int][Math]::Ceiling(($script:PomodoroEndAt - (Get-Date)).TotalSeconds)
         if ($remaining -le 0) {
             $script:SecondsRemaining = 0
-            Invoke-AppActionResult (Complete-Pomodoro)
+            Invoke-AppActionResult (Complete-PomodoroFromUi)
         }
         else {
             $script:SecondsRemaining = $remaining

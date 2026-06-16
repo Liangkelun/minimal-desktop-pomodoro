@@ -21,14 +21,12 @@ function New-AppMaintenanceLogPath([string]$Prefix) {
 }
 
 function New-AppRelaunchScript([int]$ParentProcessId, [string]$LogPath) {
-    $launcher = Join-Path $script:RootDir "StartTaskPomodoro.vbs"
     $scriptPath = Join-Path $script:RootDir "TaskPomodoro.ps1"
     $mutexName = Get-AppScopedMutexName "instance"
 
     return @(
         '$ErrorActionPreference = "Continue"',
         ('$parentProcessId = ' + [string]$ParentProcessId),
-        ('$launcher = ' + (ConvertTo-PowerShellSingleQuoted $launcher)),
         ('$scriptPath = ' + (ConvertTo-PowerShellSingleQuoted $scriptPath)),
         ('$logPath = ' + (ConvertTo-PowerShellSingleQuoted $LogPath)),
         ('$mutexName = ' + (ConvertTo-PowerShellSingleQuoted $mutexName)),
@@ -58,13 +56,8 @@ function New-AppRelaunchScript([int]$ParentProcessId, [string]$LogPath) {
         '}',
         'Start-Sleep -Milliseconds 200',
         'try {',
-        '    if (Test-Path -LiteralPath $launcher) {',
-        '        Start-Process -FilePath "wscript.exe" -ArgumentList @((ConvertTo-QuotedProcessArgument $launcher)) | Out-Null',
-        '        Write-RelaunchLog ("started launcher=" + $launcher)',
-        '    } else {',
-        '        Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", (ConvertTo-QuotedProcessArgument $scriptPath)) -WindowStyle Hidden | Out-Null',
-        '        Write-RelaunchLog ("started script=" + $scriptPath)',
-        '    }',
+        '    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", (ConvertTo-QuotedProcessArgument $scriptPath)) -WindowStyle Hidden | Out-Null',
+        '    Write-RelaunchLog ("started script=" + $scriptPath)',
         '} catch {',
         '    Write-RelaunchLog ("start failed=" + $_.Exception.Message)',
         '}'

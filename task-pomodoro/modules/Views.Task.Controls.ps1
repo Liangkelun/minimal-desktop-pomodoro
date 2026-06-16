@@ -175,8 +175,20 @@ function New-TaskDetailTextBox([bool]$Multiline) {
 }
 
 function New-TaskLinksTextBox {
-    $box = New-TaskDetailTextBox $true
-    $box.WordWrap = $false; $box.ScrollBars = [System.Windows.Forms.ScrollBars]::Both
-    return $box
+    $grid = New-Object System.Windows.Forms.DataGridView
+    $grid.AllowUserToAddRows = $true
+    $grid.AllowUserToDeleteRows = $true
+    $grid.AutoSizeColumnsMode = [System.Windows.Forms.DataGridViewAutoSizeColumnsMode]::Fill
+    $grid.BackgroundColor = [System.Drawing.Color]::FromArgb(255, 255, 255)
+    $grid.BorderStyle = [System.Windows.Forms.BorderStyle]::FixedSingle
+    $grid.ColumnHeadersVisible = $false
+    $grid.EditMode = [System.Windows.Forms.DataGridViewEditMode]::EditOnKeystrokeOrF2
+    $grid.RowHeadersVisible = $true
+    $grid.RowHeadersWidth = 28
+    $grid.SelectionMode = [System.Windows.Forms.DataGridViewSelectionMode]::CellSelect
+    $grid.MultiSelect = $false
+    $column = New-Object System.Windows.Forms.DataGridViewTextBoxColumn
+    $column.AutoSizeMode = [System.Windows.Forms.DataGridViewAutoSizeColumnMode]::Fill
+    $grid.Columns.Add($column) | Out-Null
+    return $grid
 }
-

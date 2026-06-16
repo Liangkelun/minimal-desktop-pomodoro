@@ -50,11 +50,15 @@ function Ensure-TaskRowsVisible([int]$Rows) {
     }
 }
 
+function Get-CollapsedTaskRows {
+    return 2
+}
+
 function Update-SizeToggleButton {
     if ($null -eq $script:SizeToggleButton) {
         return
     }
-    if ((Get-CurrentTaskRows) -le 1) {
+    if ((Get-CurrentTaskRows) -le (Get-CollapsedTaskRows)) {
         $script:SizeToggleButton.Text = [string][char]0x25A1
     }
     else {
@@ -63,11 +67,11 @@ function Update-SizeToggleButton {
 }
 
 function Toggle-TaskRowsSize {
-    if ((Get-CurrentTaskRows) -le 1) {
+    if ((Get-CurrentTaskRows) -le (Get-CollapsedTaskRows)) {
         Resize-WindowForTaskRows 10
     }
     else {
-        Resize-WindowForTaskRows 1
+        Resize-WindowForTaskRows (Get-CollapsedTaskRows)
     }
 }
 

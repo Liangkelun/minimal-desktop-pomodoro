@@ -36,7 +36,7 @@ function Render-TimerView {
     $script:StartButton = New-Button (T "Start") 72
     $script:StartButton.Add_Click({
         if ($script:TimerState -eq "idle") {
-            Invoke-AppActionResult (Start-Pomodoro $null)
+            Invoke-AppActionResult (Start-Pomodoro ([string]$script:CurrentPomodoroTaskId))
         }
     })
     Add-BottomChromeTracking $script:StartButton
@@ -59,9 +59,48 @@ function Render-TimerView {
     Add-BottomChromeTracking $stop
     $buttons.Controls.Add($stop)
 
+    $settings = New-Button (T "Settings") 62
+    $settings.Add_Click({ Show-PomodoroSettingsDialog })
+    Add-BottomChromeTracking $settings
+    $buttons.Controls.Add($settings)
+
     $layout.Controls.Add($buttons, 0, 2)
     $script:ContentPanel.Controls.Add($layout)
     Update-TimerLabels
+}
+
+function Start-PomodoroFromUi([string]$TaskId) {
+    $task = Get-TaskById $TaskId
+    if ($null -ne $task -and [int]$task.estimatedPomodoroCount -le 0) {
+        $text = [Microsoft.VisualBasic.Interaction]::InputBox((T "PomodoroPlanPrompt"), (T "EstimatedPomodoros"), "1")
+        if ([string]::IsNullOrWhiteSpace($text)) { return New-PomodoroOperationResult $false "" "" $false $null }
+        try { $planned = [int]$text } catch { $planned = 0 }
+        if ($planned -le 0) {
+            [System.Windows.Forms.MessageBox]::Show((T "PomodoroPlanInvalid"), (T "AppTitle")) | Out-Null
+            return New-PomodoroOperationResult $false "" "" $false $null
+        }
+        Add-TaskEstimatedPomodoros $task $planned | Out-Null
+    }
+    return Start-Pomodoro $TaskId
+}
+
+function Confirm-AdditionalPomodorosFromUi {
+    if ($script:TimerPhase -ne "break" -or [string]::IsNullOrWhiteSpace($script:CurrentPomodoroTaskId)) { return }
+    $task = Get-TaskById $script:CurrentPomodoroTaskId
+    if ($null -eq $task -or (Test-TaskIsCompleted $task) -or [int]$task.estimatedPomodoroCount -le 0 -or (Get-TaskRemainingPomodoros $task) -gt 0) { return }
+    $text = [Microsoft.VisualBasic.Interaction]::InputBox((T "PomodoroAddPrompt"), (T "EstimatedPomodoros"), "1")
+    if ([string]::IsNullOrWhiteSpace($text)) { return }
+    try { $count = [int]$text } catch { $count = 0 }
+    if ($count -le 0) {
+        [System.Windows.Forms.MessageBox]::Show((T "PomodoroAddInvalid"), (T "AppTitle")) | Out-Null
+        return
+    }
+    Add-TaskEstimatedPomodoros $task $count | Out-Null
+}
+
+function Complete-PomodoroFromUi {
+    Confirm-AdditionalPomodorosFromUi
+    return Complete-Pomodoro
 }
 
 function Update-TimerLabels {
@@ -76,6 +115,11 @@ function Update-TimerLabels {
             $name = $script:CurrentPomodoroTaskTitle
             if ([string]::IsNullOrWhiteSpace($name)) {
                 $name = T "UnboundFocus"
+            }
+            $task = Get-TaskById $script:CurrentPomodoroTaskId
+            $progress = Get-TaskPomodoroProgressText $task
+            if (-not [string]::IsNullOrWhiteSpace($progress)) {
+                $name = "$name $progress"
             }
             $script:CurrentTaskLabel.Text = "$(T "CurrentTask"): $name"
         }

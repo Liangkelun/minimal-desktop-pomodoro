@@ -7,6 +7,10 @@ function Restore-SelfTestFileContent([string]$Path, [string]$Content) {
 }
 
 function Invoke-SelfTest {
+    Invoke-WithNamedMutex (Get-AppScopedMutexName "data") { Invoke-SelfTestCore } 120000
+}
+
+function Invoke-SelfTestCore {
     $originalTasks = @($script:Tasks)
     $originalTasksRaw = $null
     $originalSettingsRaw = $null
@@ -165,14 +169,14 @@ function Invoke-SelfTest {
         $decodedCommand = [System.Text.Encoding]::Unicode.GetString([Convert]::FromBase64String((ConvertTo-EncodedPowerShellCommand "Write-Output 'ok'")))
         if ($decodedCommand -ne "Write-Output 'ok'") { throw "selftest failed: encoded powershell command" }
         $relaunchScript = New-AppRelaunchScript 12345 (Join-Path $script:DataDir "restart-selftest.log")
-        foreach ($fragment in @('$parentProcessId = 12345', (Get-AppScopedMutexName "instance"), "WaitOne(30000)", "StartTaskPomodoro.vbs")) {
+        foreach ($fragment in @('$parentProcessId = 12345', (Get-AppScopedMutexName "instance"), "WaitOne(30000)", "powershell.exe", "-File")) {
             if (-not $relaunchScript.Contains($fragment)) { throw "selftest failed: relaunch helper script" }
         }
         $mutexName = Get-AppScopedMutexName "selftest"
         if ($mutexName -notlike "Local\MinimalDesktopPomodoro-selftest-*") {
             throw "selftest failed: scoped mutex name"
         }
-        foreach ($requiredTextKey in @("NoOpenTasks", "NoTodayTasks", "HelpShortcutsText", "TaskFontSize", "Close", "DesktopShortcutPromptTitle", "DesktopShortcutPromptBody", "DesktopShortcutMenu")) {
+        foreach ($requiredTextKey in @("NoOpenTasks", "NoTodayTasks", "HelpShortcutsText", "TaskFontSize", "Close", "DeleteTask", "DeleteTaskConfirm", "DesktopShortcutPromptTitle", "DesktopShortcutPromptBody", "DesktopShortcutMenu")) {
             if ([string]::IsNullOrWhiteSpace((T $requiredTextKey))) {
                 throw "selftest failed: required ui text"
             }
@@ -238,6 +242,10 @@ function Invoke-SelfTest {
         if (-not $uncompleteResult.Ok -or (Get-TaskById $defaultActionTask.id).status -ne "todo" -or $null -ne (Get-TaskById $defaultActionTask.id).completedAt) {
             throw "selftest failed: uncomplete task"
         }
+        $deleteResult = Delete-Task $defaultActionTask.id
+        if (-not $deleteResult.Ok -or $deleteResult.StatusKey -ne "TaskDeleted" -or $null -ne (Get-TaskById $defaultActionTask.id)) {
+            throw "selftest failed: delete task"
+        }
         $oldDone = New-TaskObject "__selftest_daily_archive_old__" $false
         $newDone = New-TaskObject "__selftest_daily_archive_new__" $false
         $script:Tasks = @($oldDone, $newDone)
@@ -272,6 +280,23 @@ function Invoke-SelfTest {
         if (-not $stopResult.Ok -or $stopResult.StatusKey -ne "PomodoroInterrupted" -or $script:TimerState -ne "idle") {
             throw "selftest failed: stop pomodoro result"
         }
+        $script:Settings.AutoStartNextPomodoro = $false
+        $script:Settings.ColorReminder = $false
+        $followTask = New-TaskObject "__selftest_manual_next__" $true
+        $followTask.estimatedPomodoroCount = 2
+        $script:Tasks = @($followTask)
+        Start-Pomodoro $followTask.id | Out-Null
+        Complete-Pomodoro | Out-Null
+        $breakResult = Complete-Break
+        if (-not $breakResult.Ok -or $breakResult.StatusKey -ne "ReadyNextPomodoro" -or $script:TimerState -ne "idle" -or $script:CurrentPomodoroTaskId -ne $followTask.id) {
+            throw "selftest failed: manual next pomodoro readiness"
+        }
+        Start-Pomodoro ([string]$script:CurrentPomodoroTaskId) | Out-Null
+        if ($script:TimerState -ne "running" -or [int]$script:PomodoroSessionStartedCount -ne 2) {
+            throw "selftest failed: manual next pomodoro start"
+        }
+        Stop-Pomodoro | Out-Null
+        $script:Settings.AutoStartNextPomodoro = $true
 
         $script:TaskRowHeight = 24
         if (-not (Test-TaskTopDragBand 7) -or (Test-TaskTopDragBand 12)) {
@@ -281,11 +306,19 @@ function Invoke-SelfTest {
         $testList = New-Object System.Windows.Forms.ListBox
         $testList.Width = 220
         $testList.Height = 72
+        $testList.Tag = [pscustomobject]@{ Mode = "tasks" }
         $testList.Items.Add([pscustomobject]@{ Id = "task-1"; Display = "1. task" }) | Out-Null
         $testList.Items.Add([pscustomobject]@{ Id = ""; Display = "empty" }) | Out-Null
         $selectedItem = Select-ListItemAtPoint $testList 4 4
         if ($null -eq $selectedItem -or $testList.SelectedIndex -ne 0) {
             throw "selftest failed: select real list item"
+        }
+        $testList.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10.5)
+        $blankDragY = [Math]::Min(14, ($testList.ItemHeight - 2))
+        $blankTextSize = [System.Windows.Forms.TextRenderer]::MeasureText("1. task", $testList.Font, (New-Object System.Drawing.Size -ArgumentList @(10000, $testList.ItemHeight)), [System.Windows.Forms.TextFormatFlags]::NoPadding)
+        $blankDragX = [Math]::Min(140, (4 + [int]$blankTextSize.Width + 16))
+        if ((Test-TaskFirstRowBlankDragPoint $testList 8 4) -or (Test-TaskFirstRowBlankDragPoint $testList 30 $blankDragY) -or -not (Test-TaskFirstRowBlankDragPoint $testList $blankDragX $blankDragY)) {
+            throw "selftest failed: first row blank drag point"
         }
         $nullItem = Select-ListItemAtPoint $testList 4 ($testList.ItemHeight + 4)
         if ($null -ne $nullItem -or $testList.SelectedIndex -ne -1) {
@@ -296,6 +329,13 @@ function Invoke-SelfTest {
         if ($null -ne $blankItem -or $testList.SelectedIndex -ne -1) {
             throw "selftest failed: clear blank list area"
         }
+        $testList.SelectedIndex = 0
+        $script:TaskListBox = $testList
+        Clear-TaskSelection
+        if ($testList.SelectedIndex -ne -1) {
+            throw "selftest failed: clear task selection"
+        }
+        $script:TaskListBox = $null
         $testList.Dispose()
 
         $script:Form = New-Object TaskPomodoroResizableForm
@@ -306,27 +346,27 @@ function Invoke-SelfTest {
         $script:Form.Padding = New-Object System.Windows.Forms.Padding(4)
         $script:Form.MinimumSize = New-Object System.Drawing.Size(240, 34)
         $script:ContentPanel = New-Object System.Windows.Forms.Panel
-        $script:ContentPanel.Padding = New-Object System.Windows.Forms.Padding(6, 0, 6, 0)
+        $script:ContentPanel.Padding = New-Object System.Windows.Forms.Padding(6, 2, 6, 0)
         $script:MainPanel = New-Object System.Windows.Forms.Panel
-        $script:NavRowStyle = New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 30)
+        $script:NavRowStyle = New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 32)
         $script:TaskInputRowStyle = $null
         $script:TaskRowHeight = 24
         $script:BottomChromeVisible = $true
         $script:SizeToggleButton = New-Object System.Windows.Forms.Button
-        Resize-WindowForTaskRows 1
-        $oneRowHeight = [int]$script:Form.Height
-        if ($oneRowHeight -lt 38 -or $oneRowHeight -gt 48) {
-            throw "selftest failed: resize one row"
+        Resize-WindowForTaskRows (Get-CollapsedTaskRows)
+        $collapsedHeight = [int]$script:Form.Height
+        if ($collapsedHeight -lt 62 -or $collapsedHeight -gt 72) {
+            throw "selftest failed: resize collapsed rows"
         }
-        $oneRowUsableHeight = $oneRowHeight - [int]$script:Form.Padding.Vertical - [int]$script:ContentPanel.Padding.Vertical - (Get-TaskRowsWindowSlack)
-        if ($oneRowUsableHeight -lt [int]$script:TaskRowHeight) {
-            throw "selftest failed: one-row view clips task row"
+        $collapsedUsableHeight = $collapsedHeight - [int]$script:Form.Padding.Vertical - [int]$script:ContentPanel.Padding.Vertical - (Get-TaskRowsWindowSlack)
+        if ($collapsedUsableHeight -lt ([int]$script:TaskRowHeight * 2)) {
+            throw "selftest failed: collapsed view clips task rows"
         }
         if ($script:SizeToggleButton.Text -ne [string][char]0x25A1) {
             throw "selftest failed: size toggle collapsed icon"
         }
         Resize-WindowForTaskRows 10
-        if ([int]$script:Form.Height -lt 240 -or [int]$script:Form.Height -le $oneRowHeight) {
+        if ([int]$script:Form.Height -lt 240 -or [int]$script:Form.Height -le $collapsedHeight) {
             throw "selftest failed: resize ten rows"
         }
         if ($script:SizeToggleButton.Text -ne "-") {
@@ -335,9 +375,14 @@ function Invoke-SelfTest {
         $script:WatermarkToggleButton = $null
         $script:Settings.Opacity = 0.92
         $heightBeforeWatermark = [int]$script:Form.Height
+        $formBackColorBeforeWatermark = $script:Form.BackColor
+        $transparencyKeyBeforeWatermark = $script:Form.TransparencyKey
         Enter-WatermarkMode
         if (-not $script:WatermarkMode -or -not $script:Form.WatermarkMode -or [Math]::Abs([double]$script:Form.Opacity - 0.50) -gt 0.01) {
             throw "selftest failed: enter watermark"
+        }
+        if ($null -eq $script:WatermarkGhostPanel -or $script:WatermarkGhostPanel.IsDisposed -or $script:Form.TransparencyKey.ToArgb() -ne (Get-WatermarkTransparentColor).ToArgb()) {
+            throw "selftest failed: watermark transparent ghost"
         }
         if ([int]$script:Form.Height -ne $heightBeforeWatermark) {
             throw "selftest failed: watermark preserved window height"
@@ -354,6 +399,9 @@ function Invoke-SelfTest {
         }
         if ($script:Form.ClickThroughEnabled) {
             throw "selftest failed: watermark click through reset"
+        }
+        if ($null -ne $script:WatermarkGhostPanel -or $script:Form.BackColor.ToArgb() -ne $formBackColorBeforeWatermark.ToArgb() -or $script:Form.TransparencyKey.ToArgb() -ne $transparencyKeyBeforeWatermark.ToArgb()) {
+            throw "selftest failed: watermark ghost restore"
         }
         $script:SizeToggleButton.Dispose()
         $script:Form.Dispose()

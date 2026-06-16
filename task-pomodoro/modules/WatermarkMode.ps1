@@ -177,6 +177,8 @@ function Toggle-WatermarkMode {
     }
 }
 
+function Get-WatermarkModeOpacity { return 0.50 }
+
 function Enter-WatermarkMode {
     if ($null -eq $script:Form -or $script:WatermarkMode) {
         return
@@ -185,12 +187,13 @@ function Enter-WatermarkMode {
     $script:WatermarkPreviousOpacity = [double]$script:Form.Opacity
     $script:WatermarkPreviousTopMost = [bool]$script:Form.TopMost
     $script:Form.WatermarkMode = $true
+    $script:Form.Opacity = Get-WatermarkModeOpacity
     Set-UiTimerInterval 250
     $script:Form.WatermarkExitSize = 32
     $script:Form.TopMost = $true
-    $script:Form.Opacity = 0.50
     Set-BottomChromeVisible $false
     $script:BottomChromeSuppressed = $true
+    Apply-WatermarkGhostSurface
     Update-WatermarkToggleButton
     Update-WatermarkClickThrough
 }
@@ -202,6 +205,7 @@ function Exit-WatermarkMode {
     $script:WatermarkMode = $false
     $script:Form.WatermarkMode = $false
     $script:BottomChromeSuppressed = $false
+    Restore-WatermarkGhostSurface
     Set-UiTimerInterval 1000
     if ($null -ne $script:WatermarkPreviousOpacity) {
         $script:Form.Opacity = [double]$script:WatermarkPreviousOpacity

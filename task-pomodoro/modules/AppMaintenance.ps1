@@ -55,12 +55,7 @@ function Stop-AppInstanceLock {
 }
 
 function Start-TaskPomodoroProcess {
-    $launcher = Join-Path $script:RootDir "StartTaskPomodoro.vbs"
     $scriptPath = Join-Path $script:RootDir "TaskPomodoro.ps1"
-    if (Test-Path -LiteralPath $launcher) {
-        Start-Process -FilePath "wscript.exe" -ArgumentList (ConvertTo-ProcessQuotedArgument $launcher) | Out-Null
-        return
-    }
     Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", (ConvertTo-ProcessQuotedArgument $scriptPath)) -WindowStyle Hidden | Out-Null
 }
 
@@ -88,11 +83,10 @@ function Invoke-GitUpdateAndRestart {
 
     Save-Settings
     $repoRoot = Get-AppRepositoryRoot
-    $launcher = Join-Path $script:RootDir "StartTaskPomodoro.vbs"
     $scriptPath = Join-Path $script:RootDir "TaskPomodoro.ps1"
     $logPath = Join-Path $script:RootDir "update.log"
-    $launcherArg = ConvertTo-PowerShellSingleQuoted (ConvertTo-ProcessQuotedArgument $launcher)
     $scriptPathArg = ConvertTo-PowerShellSingleQuoted (ConvertTo-ProcessQuotedArgument $scriptPath)
+    $restartCommand = 'Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", ' + $scriptPathArg + ') -WindowStyle Hidden'
     $command = @(
         '$ErrorActionPreference = "Continue"',
         "try { Wait-Process -Id $PID -Timeout 20 -ErrorAction SilentlyContinue } catch {}",
@@ -102,14 +96,9 @@ function Invoke-GitUpdateAndRestart {
         '$gitExitCode = $LASTEXITCODE',
         ('"$(Get-Date -Format o) exitCode=$gitExitCode" | Add-Content -LiteralPath ' + (ConvertTo-PowerShellSingleQuoted $logPath) + ' -Encoding UTF8'),
         'if ($gitExitCode -ne 0) { "$(Get-Date -Format o) restarting current version after update failure" | Add-Content -LiteralPath ' + (ConvertTo-PowerShellSingleQuoted $logPath) + ' -Encoding UTF8',
-        ('    if (Test-Path -LiteralPath ' + (ConvertTo-PowerShellSingleQuoted $launcher) + ') { Start-Process -FilePath "wscript.exe" -ArgumentList @(' + $launcherArg + ') }'),
-        ('    else { Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", ' + $scriptPathArg + ') -WindowStyle Hidden }'),
+        ('    ' + $restartCommand),
         '    exit $gitExitCode }',
-        ('if (Test-Path -LiteralPath ' + (ConvertTo-PowerShellSingleQuoted $launcher) + ') {'),
-        ('    Start-Process -FilePath "wscript.exe" -ArgumentList @(' + $launcherArg + ')'),
-        '} else {',
-        ('    Start-Process -FilePath "powershell.exe" -ArgumentList @("-NoProfile", "-STA", "-ExecutionPolicy", "Bypass", "-File", ' + $scriptPathArg + ') -WindowStyle Hidden'),
-        '}'
+        $restartCommand
     ) -join "; "
 
     Set-Status (T "UpdatingAndRestarting")

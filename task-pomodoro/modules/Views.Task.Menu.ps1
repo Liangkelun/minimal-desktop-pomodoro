@@ -2,7 +2,8 @@
 
 function Select-ListItemAtPoint([System.Windows.Forms.ListBox]$List, [int]$X, [int]$Y) {
     $index = $List.IndexFromPoint($X, $Y)
-    if ($index -lt 0 -or $index -ge $List.Items.Count) {
+    $point = New-Object System.Drawing.Point -ArgumentList @($X, $Y)
+    if ($index -lt 0 -or $index -ge $List.Items.Count -or -not ($List.GetItemRectangle($index).Contains($point))) {
         $List.ClearSelected()
         Hide-TaskTitlePreview
         return $null
@@ -15,6 +16,13 @@ function Select-ListItemAtPoint([System.Windows.Forms.ListBox]$List, [int]$X, [i
     }
     $List.SelectedIndex = $index
     return $item
+}
+
+function Clear-TaskSelection {
+    if ($null -ne $script:TaskListBox -and -not $script:TaskListBox.IsDisposed) {
+        $script:TaskListBox.ClearSelected()
+    }
+    Hide-TaskTitlePreview
 }
 
 function Add-MenuEntry([object]$Menu, [System.Windows.Forms.ToolStripItem]$Item) {
@@ -50,6 +58,13 @@ function Add-OpenTaskLinkMenuItem([object]$Menu, [string]$TaskId) {
     Add-MenuEntry $Menu $item
 }
 
+function Invoke-DeleteTaskMenuAction([string]$TaskId) {
+    $confirm = [System.Windows.Forms.MessageBox]::Show((T "DeleteTaskConfirm"), (T "DeleteTask"), [System.Windows.Forms.MessageBoxButtons]::OKCancel, [System.Windows.Forms.MessageBoxIcon]::Warning)
+    if ($confirm -eq [System.Windows.Forms.DialogResult]::OK) {
+        Invoke-TaskOperationResult (Delete-Task $TaskId)
+    }
+}
+
 function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
     $selected = $List.SelectedItem
     if ($null -eq $selected) {
@@ -68,7 +83,7 @@ function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
         $completeAction = { param($sender, $eventArgs) Invoke-TaskOperationResult (Uncomplete-Task ([string]$sender.Tag)) }
     }
     if ($Mode -eq "today") {
-        Add-MenuItem $menu (T "PomodoroMenu") $selected.Id { param($sender, $eventArgs) Invoke-AppActionResult (Start-Pomodoro ([string]$sender.Tag)) }
+        Add-MenuItem $menu (T "PomodoroMenu") $selected.Id { param($sender, $eventArgs) Invoke-AppActionResult (Start-PomodoroFromUi ([string]$sender.Tag)) }
         Add-MenuItem $menu $completeText $selected.Id $completeAction
         Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
         $more = Add-SubMenu $menu "..."
@@ -76,6 +91,7 @@ function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
         Add-MenuItem $more (T "RemoveFromToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Unschedule-TaskToday ([string]$sender.Tag)) }
         Add-MenuItem $more (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (End-Task ([string]$sender.Tag)) }
         Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Pin-TaskToTop "today" ([string]$sender.Tag)) }
+        Add-MenuItem $more (T "DeleteTask") $selected.Id { param($sender, $eventArgs) Invoke-DeleteTaskMenuAction ([string]$sender.Tag) }
     }
     else {
         Add-MenuItem $menu (T "ScheduleToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Schedule-TaskToday ([string]$sender.Tag)) }
@@ -85,6 +101,7 @@ function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
         $more = Add-SubMenu $menu "..."
         Add-OpenTaskLinkMenuItem $more $selected.Id
         Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Pin-TaskToTop "tasks" ([string]$sender.Tag)) }
+        Add-MenuItem $more (T "DeleteTask") $selected.Id { param($sender, $eventArgs) Invoke-DeleteTaskMenuAction ([string]$sender.Tag) }
     }
     $point = $List.PointToClient([System.Windows.Forms.Cursor]::Position)
     $menu.Show($List, $point)

@@ -46,5 +46,7 @@ function Load-Tasks {
 }
 
 function Save-Tasks {
-    Write-JsonAtomic (Get-AppPath "TasksFile") @($script:Tasks)
+    $tasksFile = Get-AppPath "TasksFile"
+    Backup-DataFile $tasksFile "prewrite"
+    Write-JsonAtomic $tasksFile @($script:Tasks)
 }

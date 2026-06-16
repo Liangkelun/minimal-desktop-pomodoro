@@ -12,6 +12,10 @@ function Invoke-TaskListDefaultClickAction([System.Windows.Forms.ListBox]$List, 
     if (Test-TaskIsCompleted $task) {
         return
     }
+    if ([string]$List.Tag.Mode -eq "today") {
+        Invoke-AppActionResult (Start-PomodoroFromUi ([string]$Item.Id))
+        return
+    }
     Invoke-AppActionResult (Invoke-TaskDefaultAction ([string]$List.Tag.Mode) ([string]$Item.Id))
 }
 
@@ -69,10 +73,10 @@ function Render-TaskView([string]$Mode) {
     $list.Font = New-Object System.Drawing.Font($script:Form.Font.FontFamily, [float]$script:Settings.TaskFontSize, [System.Drawing.FontStyle]::Regular)
     Enable-TaskListDrawing $list
     $script:TaskRowHeight = [Math]::Max(22, ($list.ItemHeight + 2))
-    Ensure-TaskRowsVisible 1
+    Ensure-TaskRowsVisible (Get-CollapsedTaskRows)
     $list.BorderStyle = [System.Windows.Forms.BorderStyle]::None
     $list.BackColor = [System.Drawing.Color]::FromArgb(250, 251, 253)
-    $list.AllowDrop = $true
+    $list.AllowDrop = $true; $script:TaskListBox = $list
     $list.Tag = [pscustomobject]@{
         Mode = $Mode
         DragId = ""
@@ -107,7 +111,7 @@ function Render-TaskView([string]$Mode) {
         $list.Items.Add($item) | Out-Null
         $displayIndex++
     }
-    if ($list.Items.Count -eq 0) { $list.Items.Add([pscustomobject]@{ Id = ""; Display = T ($(if ($scheduleToday) { "NoTodayTasks" } else { "NoOpenTasks" })) }) | Out-Null }
+    if ($list.Items.Count -eq 0) { $list.Items.Add([pscustomobject]@{ Id = ""; Display = T ($(if ($scheduleToday) { "NoTodayTasks" } else { "NoOpenTasks" })) }) | Out-Null } else { $list.Items.Add([pscustomobject]@{ Id = ""; Display = "" }) | Out-Null }
 
     $list.Add_MouseDown({
         param($sender, $eventArgs)
@@ -120,14 +124,11 @@ function Render-TaskView([string]$Mode) {
         }
         elseif ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) {
             if (Test-TaskTopDragBand $eventArgs.Y) {
-                $tag.DragId = ""
-                $tag.WindowDrag = $true
-                Reset-TaskListClickState $tag
-                Hide-TaskTitlePreview
-                if ($null -ne $sender -and -not $sender.IsDisposed) {
-                    $sender.ClearSelected()
-                }
-                Start-WindowDrag
+                Start-TaskListWindowDrag $sender
+                return
+            }
+            if (Test-TaskFirstRowBlankDragPoint $sender $eventArgs.X $eventArgs.Y) {
+                Start-TaskListWindowDrag $sender
                 return
             }
 

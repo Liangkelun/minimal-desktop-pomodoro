@@ -5,22 +5,25 @@ function Get-DefaultSettings {
         TopMost = $true
         Opacity = 1.00
         TaskFontSize = 15.0
+        BlurTextStyle = "dark"
         WorkMinutes = 25
         ShortBreakMinutes = 5
+        PomodoroRounds = 1
+        AutoStartNextPomodoro = $true
         SoundReminder = $true
         StartSoundReminder = $true
         EndSoundReminder = $true
         ColorReminder = $true
         TaskbarReminder = $true
         ToastReminder = $false
-        WorkMusic = $false
-        BreakMusic = $false
+        WorkMusic = $true
+        BreakMusic = $true
         WorkMusicLoop = $true
         BreakMusicLoop = $true
         StartSoundFile = Get-DefaultAudioPath "focus-start.wav"
         EndSoundFile = Get-DefaultAudioPath "break-start.wav"
-        WorkMusicFile = Get-DefaultAudioPath "focus-loop.wav"
-        BreakMusicFile = Get-DefaultAudioPath "break-loop.wav"
+        WorkMusicFile = Get-DefaultAudioPath "focus-loop.mp3"
+        BreakMusicFile = Get-DefaultAudioPath "break-loop.mp3"
         Language = Get-DefaultLanguage
         DailyArchiveHour = 0
         DailyArchiveMinute = 0
@@ -39,7 +42,6 @@ function Ensure-SettingsDefaults {
         Ensure-Property $script:Settings $prop.Name $prop.Value
     }
 }
-
 function Get-ClampedNumber([object]$Value, [double]$Default, [double]$Min, [double]$Max) {
     try {
         $number = [double]$Value
@@ -59,7 +61,6 @@ function Get-ClampedNumber([object]$Value, [double]$Default, [double]$Min, [doub
     }
     return $number
 }
-
 function Get-ClampedIntegerAllowZero([object]$Value, [int]$Default, [int]$Min, [int]$Max) {
     try {
         $number = [int]$Value
@@ -75,7 +76,6 @@ function Get-ClampedIntegerAllowZero([object]$Value, [int]$Default, [int]$Min, [
     }
     return $number
 }
-
 function Normalize-Settings {
     Ensure-SettingsDefaults
     $defaults = Get-DefaultSettings
@@ -84,11 +84,11 @@ function Normalize-Settings {
     $script:Settings.TaskFontSize = Get-ClampedNumber $script:Settings.TaskFontSize $defaults.TaskFontSize 9.0 32.0
     $script:Settings.WorkMinutes = [int](Get-ClampedNumber $script:Settings.WorkMinutes $defaults.WorkMinutes 1 180)
     $script:Settings.ShortBreakMinutes = [int](Get-ClampedNumber $script:Settings.ShortBreakMinutes $defaults.ShortBreakMinutes 1 60)
+    $script:Settings.PomodoroRounds = [int](Get-ClampedNumber $script:Settings.PomodoroRounds $defaults.PomodoroRounds 1 24)
     $script:Settings.WindowWidth = [int](Get-ClampedNumber $script:Settings.WindowWidth $defaults.WindowWidth 300 900)
     $script:Settings.WindowHeight = [int](Get-ClampedNumber $script:Settings.WindowHeight $defaults.WindowHeight 34 900)
     $script:Settings.DailyArchiveHour = Get-ClampedIntegerAllowZero $script:Settings.DailyArchiveHour $defaults.DailyArchiveHour 0 23
     $script:Settings.DailyArchiveMinute = Get-ClampedIntegerAllowZero $script:Settings.DailyArchiveMinute $defaults.DailyArchiveMinute 0 59
-
     try { $script:Settings.TopMost = [bool]$script:Settings.TopMost } catch { $script:Settings.TopMost = $defaults.TopMost }
     try { $script:Settings.SoundReminder = [bool]$script:Settings.SoundReminder } catch { $script:Settings.SoundReminder = $defaults.SoundReminder }
     try { $script:Settings.StartSoundReminder = [bool]$script:Settings.StartSoundReminder } catch { $script:Settings.StartSoundReminder = $defaults.StartSoundReminder }
@@ -98,15 +98,18 @@ function Normalize-Settings {
     try { $script:Settings.ToastReminder = [bool]$script:Settings.ToastReminder } catch { $script:Settings.ToastReminder = $defaults.ToastReminder }
     try { $script:Settings.WorkMusic = [bool]$script:Settings.WorkMusic } catch { $script:Settings.WorkMusic = $defaults.WorkMusic }
     try { $script:Settings.BreakMusic = [bool]$script:Settings.BreakMusic } catch { $script:Settings.BreakMusic = $defaults.BreakMusic }
+    try { $script:Settings.AutoStartNextPomodoro = [bool]$script:Settings.AutoStartNextPomodoro } catch { $script:Settings.AutoStartNextPomodoro = $defaults.AutoStartNextPomodoro }
     try { $script:Settings.WorkMusicLoop = [bool]$script:Settings.WorkMusicLoop } catch { $script:Settings.WorkMusicLoop = $defaults.WorkMusicLoop }
     try { $script:Settings.BreakMusicLoop = [bool]$script:Settings.BreakMusicLoop } catch { $script:Settings.BreakMusicLoop = $defaults.BreakMusicLoop }
     try { $script:Settings.DesktopShortcutPrompted = [bool]$script:Settings.DesktopShortcutPrompted } catch { $script:Settings.DesktopShortcutPrompted = $defaults.DesktopShortcutPrompted }
     $defaultAudioFiles = @{
         StartSoundFile = Get-DefaultAudioPath "focus-start.wav"
         EndSoundFile = Get-DefaultAudioPath "break-start.wav"
-        WorkMusicFile = Get-DefaultAudioPath "focus-loop.wav"
-        BreakMusicFile = Get-DefaultAudioPath "break-loop.wav"
+        WorkMusicFile = Get-DefaultAudioPath "focus-loop.mp3"
+        BreakMusicFile = Get-DefaultAudioPath "break-loop.mp3"
     }
+    $oldFocusLoop = Get-DefaultAudioPath "focus-loop.wav"; if ($script:Settings.WorkMusicFile -eq $oldFocusLoop -and -not [string]::IsNullOrWhiteSpace([string]$defaultAudioFiles.WorkMusicFile)) { $script:Settings.WorkMusicFile = $defaultAudioFiles.WorkMusicFile }
+    $oldBreakLoop = Get-DefaultAudioPath "break-loop.wav"; if ($script:Settings.BreakMusicFile -eq $oldBreakLoop -and -not [string]::IsNullOrWhiteSpace([string]$defaultAudioFiles.BreakMusicFile)) { $script:Settings.BreakMusicFile = $defaultAudioFiles.BreakMusicFile }
     foreach ($fileProp in @("StartSoundFile", "EndSoundFile", "WorkMusicFile", "BreakMusicFile")) {
         if ($null -eq $script:Settings.$fileProp -or [string]::IsNullOrWhiteSpace([string]$script:Settings.$fileProp)) {
             $script:Settings.$fileProp = $defaultAudioFiles[$fileProp]

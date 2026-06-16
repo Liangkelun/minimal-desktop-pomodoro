@@ -15,14 +15,14 @@ function Render-SettingsView {
     Add-BottomChromeTracking $scroll
 
     $panel = New-Object System.Windows.Forms.TableLayoutPanel
-    $panel.Dock = [System.Windows.Forms.DockStyle]::Top; $panel.AutoSize = $true; $panel.ColumnCount = 2; $panel.RowCount = 14
+    $panel.Dock = [System.Windows.Forms.DockStyle]::Top; $panel.AutoSize = $true; $panel.ColumnCount = 2; $panel.RowCount = 15
     $panel.Padding = New-Object System.Windows.Forms.Padding(2); $panel.BackColor = $root.BackColor
     Add-BottomChromeTracking $panel
     $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 46))) | Out-Null
     $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 54))) | Out-Null
     for ($i = 0; $i -lt $panel.RowCount; $i++) {
         $rowHeight = 30
-        if ($i -in @(0, 6)) {
+        if ($i -in @(0, 7)) {
             $rowHeight = 24
         }
         elseif ($i -eq 2) {
@@ -102,8 +102,15 @@ function Render-SettingsView {
     $taskFont.Value = [decimal]$script:Settings.TaskFontSize
     Add-SettingRow $panel (T "TaskFontSize") $taskFont 3
 
+    $blurText = New-Object System.Windows.Forms.ComboBox
+    $blurText.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $blurText.DisplayMember = "Label"; $blurText.ValueMember = "Value"
+    $blurText.Items.Add([pscustomobject]@{ Label = "黑字白影"; Value = "dark" }) | Out-Null
+    $blurText.Items.Add([pscustomobject]@{ Label = "白字黑影"; Value = "light" }) | Out-Null
+    $blurText.SelectedIndex = 0; if ([string]$script:Settings.BlurTextStyle -eq "light") { $blurText.SelectedIndex = 1 }
+    Add-SettingRow $panel (T "Watermark") $blurText 4
+
     $topMostControl = New-CheckOnlyControl ([bool]$script:Settings.TopMost)
-    Add-SettingRow $panel (T "TopMost") $topMostControl.Panel 4
+    Add-SettingRow $panel (T "TopMost") $topMostControl.Panel 5
 
     $dailyArchivePanel = New-Object System.Windows.Forms.FlowLayoutPanel
     $dailyArchivePanel.Dock = [System.Windows.Forms.DockStyle]::Fill
@@ -133,44 +140,45 @@ function Render-SettingsView {
     $dailyArchiveMinute.Width = 52
     $dailyArchiveMinute.Value = [decimal]$script:Settings.DailyArchiveMinute
     $dailyArchivePanel.Controls.Add($dailyArchiveMinute)
-    Add-SettingRow $panel (T "DailyArchiveTime") $dailyArchivePanel 5
+    Add-SettingRow $panel (T "DailyArchiveTime") $dailyArchivePanel 6
 
-    Add-SettingSection $panel (T "PomodoroSettings") 6
+    Add-SettingSection $panel (T "PomodoroSettings") 7
 
     $work = New-Object System.Windows.Forms.NumericUpDown
     $work.Minimum = 1
     $work.Maximum = 180
     $work.Value = [decimal]$script:Settings.WorkMinutes
-    Add-SettingRow $panel (T "WorkMinutes") $work 7
+    Add-SettingRow $panel (T "WorkMinutes") $work 8
 
     $break = New-Object System.Windows.Forms.NumericUpDown
     $break.Minimum = 1
     $break.Maximum = 60
     $break.Value = [decimal]$script:Settings.ShortBreakMinutes
-    Add-SettingRow $panel (T "ShortBreakMinutes") $break 8
+    Add-SettingRow $panel (T "ShortBreakMinutes") $break 9
 
     $startSoundControl = New-AudioSettingControl ([bool]$script:Settings.StartSoundReminder) $audioState "StartSoundFile" "start" $false $false
-    Add-SettingRow $panel (T "StartSoundReminder") $startSoundControl.Panel 9
+    Add-SettingRow $panel (T "StartSoundReminder") $startSoundControl.Panel 10
 
     $endSoundControl = New-AudioSettingControl ([bool]$script:Settings.EndSoundReminder) $audioState "EndSoundFile" "end" $false $false
-    Add-SettingRow $panel (T "EndSoundReminder") $endSoundControl.Panel 10
+    Add-SettingRow $panel (T "EndSoundReminder") $endSoundControl.Panel 11
 
     $colorControl = New-CheckOnlyControl ([bool]$script:Settings.ColorReminder)
-    Add-SettingRow $panel (T "ColorReminder") $colorControl.Panel 11
+    Add-SettingRow $panel (T "ColorReminder") $colorControl.Panel 12
 
     $workMusicControl = New-AudioSettingControl ([bool]$script:Settings.WorkMusic) $audioState "WorkMusicFile" "work" $true ([bool]$script:Settings.WorkMusicLoop)
-    Add-SettingRow $panel (T "WorkMusic") $workMusicControl.Panel 12
+    Add-SettingRow $panel (T "WorkMusic") $workMusicControl.Panel 13
 
     $breakMusicControl = New-AudioSettingControl ([bool]$script:Settings.BreakMusic) $audioState "BreakMusicFile" "break" $true ([bool]$script:Settings.BreakMusicLoop)
-    Add-SettingRow $panel (T "BreakMusic") $breakMusicControl.Panel 13
+    Add-SettingRow $panel (T "BreakMusic") $breakMusicControl.Panel 14
 
-    $save = New-Button (T "SaveSettings") 110
+    $save = New-Button (T "SaveSettings") 88
     $save.Tag = [pscustomobject]@{
         Language = $language
         Work = $work
         Break = $break
         Opacity = $opacity
         TaskFont = $taskFont
+        BlurText = $blurText
         TopMost = $topMostControl.Check
         DailyArchiveHour = $dailyArchiveHour
         DailyArchiveMinute = $dailyArchiveMinute
@@ -217,7 +225,7 @@ function Render-SettingsView {
         Render-CurrentView
     })
 
-    $defaults = New-Button (T "DefaultSettings") 110
+    $defaults = New-Button (T "DefaultSettings") 88
     $defaults.Add_Click({
         Reset-SettingsToDefaults
         if ($script:TimerState -eq "idle") { $script:SecondsRemaining = [int]$script:Settings.WorkMinutes * 60 }
@@ -228,12 +236,20 @@ function Render-SettingsView {
         Render-CurrentView
     })
 
+    $cancel = New-Button (T "Cancel") 70
+    $cancel.Add_Click({
+        if ($script:WatermarkMode) { $script:WatermarkPreviousOpacity = [double]$script:Settings.Opacity; $script:Form.Opacity = Get-WatermarkModeOpacity }
+        else { $script:Form.Opacity = [double]$script:Settings.Opacity }
+        Render-CurrentView
+    })
+
     $buttons = New-Object System.Windows.Forms.FlowLayoutPanel
     $buttons.Dock = [System.Windows.Forms.DockStyle]::Fill; $buttons.FlowDirection = [System.Windows.Forms.FlowDirection]::RightToLeft; $buttons.WrapContents = $false
     $buttons.Padding = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
     $buttons.Margin = New-Object System.Windows.Forms.Padding(0); $buttons.BackColor = $root.BackColor
     $buttons.Controls.Add($save)
     $buttons.Controls.Add($defaults)
+    $buttons.Controls.Add($cancel)
     Add-BottomChromeTracking $buttons
 
     $scroll.Controls.Add($panel)

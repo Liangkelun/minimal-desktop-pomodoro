@@ -1,5 +1,61 @@
 # This file is dot-sourced by TaskPomodoro.ps1. It owns the task details dialog UI.
 
+function Get-TaskDetailsDropLinks([System.Windows.Forms.IDataObject]$Data, [bool]$IncludeText) {
+    $items = New-Object System.Collections.ArrayList
+    if ($null -eq $Data) { return @() }
+    if ($Data.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+        foreach ($path in [string[]]$Data.GetData([System.Windows.Forms.DataFormats]::FileDrop)) {
+            if (-not [string]::IsNullOrWhiteSpace($path)) { $items.Add($path) | Out-Null }
+        }
+    }
+    elseif ($IncludeText) {
+        $format = if ($Data.GetDataPresent([System.Windows.Forms.DataFormats]::UnicodeText)) { [System.Windows.Forms.DataFormats]::UnicodeText } else { [System.Windows.Forms.DataFormats]::Text }
+        if ($Data.GetDataPresent($format)) {
+            foreach ($link in (ConvertTo-TaskLinks ([string]$Data.GetData($format)))) { $items.Add($link) | Out-Null }
+        }
+    }
+    return ,([string[]]$items.ToArray())
+}
+
+function Get-TaskDetailsLinksControlLinks([System.Windows.Forms.Control]$Control) {
+    if ($Control -is [System.Windows.Forms.DataGridView]) {
+        $items = New-Object System.Collections.ArrayList
+        foreach ($row in $Control.Rows) {
+            if ($row.IsNewRow) { continue }
+            foreach ($link in (ConvertTo-TaskLinks $row.Cells[0].Value)) { $items.Add($link) | Out-Null }
+        }
+        return ,([string[]]$items.ToArray())
+    }
+    return ConvertTo-TaskLinks $Control.Text
+}
+
+function Set-TaskDetailsLinksControlLinks([System.Windows.Forms.Control]$Control, [object]$Links) {
+    if ($Control -is [System.Windows.Forms.DataGridView]) {
+        $Control.Rows.Clear()
+        foreach ($link in (ConvertTo-TaskLinks $Links)) { $Control.Rows.Add($link) | Out-Null }
+        return
+    }
+    $Control.Text = (ConvertTo-TaskLinks $Links) -join "`r`n"
+}
+
+function Add-TaskDetailsLinksText([System.Windows.Forms.Control]$Box, [object]$Links) {
+    $items = New-Object System.Collections.ArrayList
+    foreach ($link in (Get-TaskDetailsLinksControlLinks $Box)) { if ($items -notcontains $link) { $items.Add($link) | Out-Null } }
+    foreach ($link in (ConvertTo-TaskLinks $Links)) { if ($items -notcontains $link) { $items.Add($link) | Out-Null } }
+    Set-TaskDetailsLinksControlLinks $Box ([string[]]$items.ToArray())
+}
+
+function Enable-TaskDetailsDropTarget([System.Windows.Forms.Control]$Control, [System.Windows.Forms.Control]$LinksBox, [bool]$IncludeText) {
+    $Control.AllowDrop = $true
+    $Control.Add_DragEnter({ param($sender, $eventArgs) if ((Get-TaskDetailsDropLinks $eventArgs.Data $IncludeText).Count -gt 0) { $eventArgs.Effect = [System.Windows.Forms.DragDropEffects]::Copy } else { $eventArgs.Effect = [System.Windows.Forms.DragDropEffects]::None } }.GetNewClosure())
+    $Control.Add_DragDrop({ param($sender, $eventArgs) $links = Get-TaskDetailsDropLinks $eventArgs.Data $IncludeText; if ($links.Count -gt 0) { Add-TaskDetailsLinksText $LinksBox $links; $LinksBox.Focus() } }.GetNewClosure())
+}
+
+function Enable-TaskDetailsDropTargets([System.Windows.Forms.Control]$Root, [System.Windows.Forms.Control]$LinksBox) {
+    Enable-TaskDetailsDropTarget $Root $LinksBox ([object]::ReferenceEquals($Root, $LinksBox))
+    foreach ($child in $Root.Controls) { Enable-TaskDetailsDropTargets $child $LinksBox }
+}
+
 function Edit-TaskDetails([string]$Id) {
     $task = Get-TaskById $Id
     if ($null -eq $task) {
@@ -121,11 +177,11 @@ function Edit-TaskDetails([string]$Id) {
 
     $linksBox = New-TaskLinksTextBox
     $linksBox.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $linksBox.Text = Get-TaskLinksText $task
+    Set-TaskDetailsLinksControlLinks $linksBox (Get-TaskLinksText $task)
     $layout.Controls.Add($linksBox, 0, 6)
     $layout.SetColumnSpan($linksBox, 2)
     $openLink.Add_Click({
-        [string[]]$links = ConvertTo-TaskLinks $linksBox.Text
+        [string[]]$links = Get-TaskDetailsLinksControlLinks $linksBox
         if ($links.Count -gt 0) {
             Open-TaskLinkTarget ([string]$links[0]) $Id $task
         }
@@ -151,7 +207,7 @@ function Edit-TaskDetails([string]$Id) {
 
     $save = New-Button (T "SaveSettings") 82
     $save.Add_Click({
-        if (Set-TaskDetails $Id $titleBox.Text $notesBox.Text ([int]$estimateBox.Value) ([int]$actualBox.Value) $linksBox.Text) {
+        if (Set-TaskDetails $Id $titleBox.Text $notesBox.Text ([int]$estimateBox.Value) ([int]$actualBox.Value) (Get-TaskDetailsLinksControlLinks $linksBox)) {
             $dialog.DialogResult = [System.Windows.Forms.DialogResult]::OK
             $dialog.Close()
             Render-CurrentView
@@ -171,6 +227,7 @@ function Edit-TaskDetails([string]$Id) {
     $layout.SetColumnSpan($buttons, 2)
 
     $dialog.Controls.Add($layout)
+    Enable-TaskDetailsDropTargets $dialog $linksBox
     $dialog.AcceptButton = $save
     $dialog.CancelButton = $cancel
     $titleBox.Select($titleBox.Text.Length, 0)

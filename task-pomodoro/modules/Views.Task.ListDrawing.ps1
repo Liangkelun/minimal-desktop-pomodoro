@@ -19,6 +19,14 @@ function Enable-TaskListDrawing([System.Windows.Forms.ListBox]$List) {
         param($sender, $eventArgs)
         Draw-TaskListItem ([System.Windows.Forms.ListBox]$sender) $eventArgs
     })
+    $List.Add_MouseMove({
+        param($sender, $eventArgs)
+        Update-TaskListHoverState ([System.Windows.Forms.ListBox]$sender) ([int]$eventArgs.X) ([int]$eventArgs.Y)
+    })
+    $List.Add_MouseLeave({
+        param($sender, $eventArgs)
+        Clear-TaskListHoverState ([System.Windows.Forms.ListBox]$sender)
+    })
 }
 
 function Draw-TaskListItem([System.Windows.Forms.ListBox]$List, [System.Windows.Forms.DrawItemEventArgs]$EventArgs) {
@@ -33,6 +41,10 @@ function Draw-TaskListItem([System.Windows.Forms.ListBox]$List, [System.Windows.
     }
     $isCompleted = Test-TaskIsCompleted $task
     $showCheckbox = ((Get-TaskListMode $List) -in @("tasks", "today") -and $null -ne $task)
+    $hoverIndex = [int](Get-TaskListTagValue $List "HoverIndex" -1)
+    $hoverCheckbox = [bool](Get-TaskListTagValue $List "HoverCheckbox" $false)
+    $hoverTopDragBand = [bool](Get-TaskListTagValue $List "HoverTopDragBand" $false)
+    $isHovered = ($hoverIndex -eq $EventArgs.Index -and -not $hoverTopDragBand)
 
     $EventArgs.DrawBackground()
     $selected = (($EventArgs.State -band [System.Windows.Forms.DrawItemState]::Selected) -eq [System.Windows.Forms.DrawItemState]::Selected)
@@ -58,20 +70,37 @@ function Draw-TaskListItem([System.Windows.Forms.ListBox]$List, [System.Windows.
             [int]$EventArgs.Bounds.Height
         )
 
-        if ($showCheckbox) {
-            $checkText = [string][char]0x25CB
-            $checkColor = $textColor
-            if ($isCompleted) {
-                $checkText = [string][char]0x2713
-                if (-not $selected) {
-                    $checkColor = [System.Drawing.Color]::FromArgb(24, 96, 56)
+        $displayText = [string]$item.Display
+        $prefixMatch = [regex]::Match($displayText, '^\d+\.\s+')
+        if ($showCheckbox -and $prefixMatch.Success) {
+            $prefixSize = [System.Windows.Forms.TextRenderer]::MeasureText($prefixMatch.Value, $List.Font, (New-Object System.Drawing.Size -ArgumentList @(120, $textRect.Height)), [System.Windows.Forms.TextFormatFlags]::NoPadding)
+            $prefixWidth = [Math]::Max(18, [int]$prefixSize.Width)
+            $prefixRect = New-Object System.Drawing.Rectangle -ArgumentList @($textRect.X, $textRect.Y, $prefixWidth, $textRect.Height)
+            if ($isCompleted -or $isHovered) {
+                $checkText = [string][char]0x25CB
+                $checkColor = [System.Drawing.Color]::FromArgb(107, 114, 128)
+                if ($selected) {
+                    $checkColor = $textColor
                 }
+                elseif ($hoverCheckbox) {
+                    $checkColor = [System.Drawing.Color]::FromArgb(55, 65, 81)
+                }
+                if ($isCompleted) {
+                    $checkText = [string][char]0x2713
+                    if (-not $selected) {
+                        $checkColor = [System.Drawing.Color]::FromArgb(24, 96, 56)
+                    }
+                }
+                $checkFont = New-Object System.Drawing.Font($List.Font, [System.Drawing.FontStyle]::Regular)
+                $checkFlags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor [System.Windows.Forms.TextFormatFlags]::HorizontalCenter -bor [System.Windows.Forms.TextFormatFlags]::SingleLine -bor [System.Windows.Forms.TextFormatFlags]::NoPrefix
+                [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, $checkText, $checkFont, $prefixRect, $checkColor, $checkFlags)
             }
-            $checkFont = New-Object System.Drawing.Font($List.Font, [System.Drawing.FontStyle]::Regular)
-            $checkRect = New-Object System.Drawing.Rectangle -ArgumentList @($textRect.X, $textRect.Y, 22, $textRect.Height)
-            [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, $checkText, $checkFont, $checkRect, $checkColor, $textFlags)
-            $textRect.X += 22
-            $textRect.Width = [Math]::Max(0, ($textRect.Width - 22))
+            else {
+                [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, $prefixMatch.Value, $List.Font, $prefixRect, $textColor, $textFlags)
+            }
+            $textRect.X += $prefixWidth
+            $textRect.Width = [Math]::Max(0, ($textRect.Width - $prefixWidth))
+            $displayText = $displayText.Substring($prefixMatch.Value.Length)
         }
 
         $fontStyle = [System.Drawing.FontStyle]::Regular
@@ -79,7 +108,7 @@ function Draw-TaskListItem([System.Windows.Forms.ListBox]$List, [System.Windows.
             $fontStyle = [System.Drawing.FontStyle]::Strikeout
         }
         $textFont = New-Object System.Drawing.Font($List.Font, $fontStyle)
-        [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, [string]$item.Display, $textFont, $textRect, $textColor, $textFlags)
+        [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, $displayText, $textFont, $textRect, $textColor, $textFlags)
     }
     finally {
         if ($null -ne $textFont) { $textFont.Dispose() }

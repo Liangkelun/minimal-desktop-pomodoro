@@ -8,19 +8,37 @@ function Format-SingleLineTaskText([string]$Text) {
 }
 
 function Format-TaskLine([object]$Task, [int]$Index) {
-    $count = 0
+    $actual = 0
     if ($null -ne $Task.pomodoroCount) {
-        $count = [int]$Task.pomodoroCount
+        $actual = [int]$Task.pomodoroCount
+    }
+    $estimated = 0
+    if ($null -ne $Task.estimatedPomodoroCount) {
+        $estimated = [int]$Task.estimatedPomodoroCount
     }
     $title = Format-SingleLineTaskText ([string]$Task.title)
     $prefix = ""
     if ($Index -gt 0) {
         $prefix = "$Index. "
     }
-    if ($count -gt 0) {
-        return "$prefix$title [$count]"
+    if ($estimated -gt 0) {
+        return "$prefix$title [$actual/$estimated]"
+    }
+    if ($actual -gt 0) {
+        return "$prefix$title [$actual]"
     }
     return "$prefix$title"
+}
+
+function Get-TaskPomodoroProgressText([object]$Task) {
+    if ($null -eq $Task) { return "" }
+    $actual = 0
+    if ($null -ne $Task.pomodoroCount) { $actual = [int]$Task.pomodoroCount }
+    $estimated = 0
+    if ($null -ne $Task.estimatedPomodoroCount) { $estimated = [int]$Task.estimatedPomodoroCount }
+    if ($estimated -gt 0) { return "[$actual/$estimated]" }
+    if ($actual -gt 0) { return "[$actual]" }
+    return ""
 }
 
 function Format-DoneLine([object]$Task) {

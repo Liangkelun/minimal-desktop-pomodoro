@@ -57,7 +57,7 @@ function Select-AudioFileFromButton([System.Windows.Forms.Button]$Button) {
     $tag = $Button.Tag
     $dialog = New-Object System.Windows.Forms.OpenFileDialog
     $dialog.Title = T "AudioFile"
-    $dialog.Filter = "WAV audio (*.wav)|*.wav|All files (*.*)|*.*"
+    $dialog.Filter = "Audio files (*.wav;*.mp3;*.wma;*.m4a;*.aac)|*.wav;*.mp3;*.wma;*.m4a;*.aac|WAV audio (*.wav)|*.wav|All files (*.*)|*.*"
     $current = [string](Get-ObjectPropertyValue $tag.State $tag.Property)
     if (-not [string]::IsNullOrWhiteSpace($current) -and (Test-Path -LiteralPath $current)) {
         $dialog.InitialDirectory = Split-Path -Parent $current
@@ -187,6 +187,7 @@ function Apply-SettingsControls([object]$Controls) {
     $script:Settings.ShortBreakMinutes = [int]$Controls.Break.Value
     $script:Settings.Opacity = [double]($Controls.Opacity.Value / 100)
     $script:Settings.TaskFontSize = [double]$Controls.TaskFont.Value
+    $script:Settings.BlurTextStyle = [string]$Controls.BlurText.SelectedItem.Value
     $script:Settings.TopMost = [bool]$Controls.TopMost.Checked
     $script:Settings.DailyArchiveHour = [int]$Controls.DailyArchiveHour.Value
     $script:Settings.DailyArchiveMinute = [int]$Controls.DailyArchiveMinute.Value
@@ -205,7 +206,7 @@ function Apply-SettingsControls([object]$Controls) {
     $script:Form.TopMost = [bool]$script:Settings.TopMost
     if ($script:WatermarkMode) {
         $script:WatermarkPreviousOpacity = [double]$script:Settings.Opacity
-        $script:Form.Opacity = 0.50
+        $script:Form.Opacity = Get-WatermarkModeOpacity
     }
     else {
         $script:Form.Opacity = [double]$script:Settings.Opacity

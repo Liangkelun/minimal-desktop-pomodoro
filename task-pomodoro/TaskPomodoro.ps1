@@ -109,7 +109,8 @@ public class TaskPomodoroResizableForm : Form
         int grip = Math.Max(2, ResizeGripSize);
         bool left = point.X <= grip;
         bool right = point.X >= this.ClientSize.Width - grip;
-        bool top = point.Y <= grip;
+        int topGrip = Math.Max(2, grip - 3);
+        bool top = point.Y <= topGrip;
         bool bottom = point.Y >= this.ClientSize.Height - grip;
 
         if (left && top) m.Result = (IntPtr)HTTOPLEFT;
@@ -129,7 +130,7 @@ $ErrorActionPreference = "Stop"
 
 $script:RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $script:ModulesDir = Join-Path $script:RootDir "modules"
-foreach ($moduleName in @("AppState.ps1", "UiText.ps1", "Storage.ps1", "SettingsStore.ps1", "TaskModel.ps1", "TaskStore.ps1", "TaskQueries.ps1", "TaskOrdering.ps1", "TaskCommands.ps1", "TaskDetails.ps1", "TaskArchive.ps1", "TaskFormat.ps1", "PomodoroRecords.ps1", "PomodoroAudio.ps1", "PomodoroEffects.ps1", "PomodoroEngine.ps1", "AppRelaunch.ps1", "AppMaintenance.ps1", "DesktopShortcut.ps1", "UiTimer.ps1", "BottomChrome.ps1", "WindowSize.ps1", "WindowDrag.ps1", "HelpSurface.ps1", "WatermarkMode.ps1", "Views.Core.ps1", "Views.Task.Controls.ps1", "Views.Task.ListDrawing.ps1", "Views.Task.DetailsDialog.ps1", "Views.Task.Edit.ps1", "Views.Task.ps1", "Views.Task.Menu.ps1", "Views.Timer.ps1", "Views.More.ps1", "Views.Settings.Controls.ps1", "Views.Settings.ps1", "SelfTest.ps1")) {
+foreach ($moduleName in @("AppState.ps1", "UiText.ps1", "Storage.ps1", "SettingsStore.ps1", "TaskModel.ps1", "TaskStore.ps1", "TaskQueries.ps1", "TaskOrdering.ps1", "TaskCommands.ps1", "TaskDetails.ps1", "TaskArchive.ps1", "TaskFormat.ps1", "PomodoroRecords.ps1", "PomodoroAudio.ps1", "PomodoroEffects.ps1", "PomodoroSession.ps1", "PomodoroEngine.ps1", "AppRelaunch.ps1", "AppMaintenance.ps1", "DesktopShortcut.ps1", "UiTimer.ps1", "BottomChrome.ps1", "WindowSize.ps1", "WindowDrag.ps1", "HelpSurface.ps1", "WatermarkGhostSurface.ps1", "WatermarkMode.ps1", "Views.Core.ps1", "Views.Task.Controls.ps1", "Views.Task.Hover.ps1", "Views.Task.ListDrawing.ps1", "Views.Task.DetailsDialog.ps1", "Views.Task.Edit.ps1", "Views.Task.ps1", "Views.Task.Menu.ps1", "Views.Timer.ps1", "Views.More.ps1", "Views.Settings.Controls.ps1", "Views.Timer.SettingsDialog.ps1", "Views.Settings.ps1", "SelfTest.ps1")) {
     . (Join-Path $script:ModulesDir $moduleName)
 }
 Initialize-AppState $script:RootDir
@@ -169,18 +170,30 @@ function Initialize-State {
     $script:PomodoroStartedAt = $null
     $script:PomodoroStartedAtDate = $null
     $script:PomodoroEndAt = $null
+    $script:CurrentPhasePlannedMinutes = 0
+    $script:PomodoroSessionWorkMinutes = 0
+    $script:PomodoroSessionBreakMinutes = 0
+    $script:PomodoroSessionMaxRounds = 0
+    $script:PomodoroSessionStartedCount = 0
+    $script:PomodoroSessionAutoStartNext = $null
     $script:BackgroundPlayer = $null
     $script:StatusMessage = ""
     $script:WatermarkMode = $false
     $script:WatermarkPreviousOpacity = $null
     $script:WatermarkPreviousTopMost = $null
+    $script:WatermarkPreviousBackColor = $null
+    $script:WatermarkPreviousTransparencyKey = $null
+    $script:WatermarkGhostPanel = $null
     $script:WatermarkToggleButton = $null
     $script:WatermarkToggleDragActive = $false
     $script:WatermarkToggleDragMoved = $false
     $script:WatermarkToggleDragStart = $null
+    $script:ColorReminderFlashTimer = $null
+    $script:ColorReminderFlashRestore = $null
     $script:HelpButton = $null
     $script:TaskPreviewToolTip = $null
     $script:TaskPreviewPanel = $null
+    $script:TaskListBox = $null
     Invoke-DailyArchiveIfDue | Out-Null
 }
 
@@ -226,7 +239,7 @@ function Initialize-Ui {
     $main.Margin = New-Object System.Windows.Forms.Padding(0)
     $main.BackColor = [System.Drawing.Color]::FromArgb(250, 251, 253)
     $main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
-    $main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 30))) | Out-Null
+    $main.RowStyles.Add((New-Object System.Windows.Forms.RowStyle([System.Windows.Forms.SizeType]::Absolute, 32))) | Out-Null
     $script:MainPanel = $main
     $script:NavRowStyle = $main.RowStyles[1]
     $script:BottomChromeVisible = $true
@@ -235,12 +248,14 @@ function Initialize-Ui {
     Add-WindowDrag $main
     Add-BottomChromeTracking $script:Form
     Add-BottomChromeTracking $main
+    $script:Form.Add_Deactivate({ Clear-TaskSelection })
+    $script:Form.Add_MouseDown({ param($sender, $eventArgs) if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) { Clear-TaskSelection } })
 
     $nav = New-Object System.Windows.Forms.TableLayoutPanel
     $nav.Dock = [System.Windows.Forms.DockStyle]::Fill
     $nav.ColumnCount = 2
     $nav.RowCount = 1
-    $nav.Padding = New-Object System.Windows.Forms.Padding(3, 1, 3, 1)
+    $nav.Padding = New-Object System.Windows.Forms.Padding(3, 1, 3, 3)
     $nav.Margin = New-Object System.Windows.Forms.Padding(0)
     $nav.BackColor = [System.Drawing.Color]::FromArgb(250, 251, 253)
     $nav.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null
@@ -317,10 +332,11 @@ function Initialize-Ui {
 
     $script:ContentPanel = New-Object System.Windows.Forms.Panel
     $script:ContentPanel.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $script:ContentPanel.Padding = New-Object System.Windows.Forms.Padding(6, 0, 6, 0)
+    $script:ContentPanel.Padding = New-Object System.Windows.Forms.Padding(6, 2, 6, 0)
     $script:ContentPanel.BackColor = [System.Drawing.Color]::FromArgb(250, 251, 253)
     Add-WindowDrag $script:ContentPanel
     Add-BottomChromeTracking $script:ContentPanel
+    $script:ContentPanel.Add_MouseDown({ param($sender, $eventArgs) if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) { Clear-TaskSelection } })
     $main.Controls.Add($script:ContentPanel, 0, 0)
     Ensure-WatermarkToggleButton
 

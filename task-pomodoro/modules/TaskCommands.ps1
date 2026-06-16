@@ -67,6 +67,19 @@ function End-Task([string]$Id) {
     return New-TaskOperationResult $true "" "" $true $task
 }
 
+function Delete-Task([string]$Id) {
+    if ([string]::IsNullOrWhiteSpace($Id)) {
+        return New-TaskOperationResult $false "" "" $false $null
+    }
+    $beforeCount = @($script:Tasks).Count
+    $script:Tasks = @($script:Tasks | Where-Object { [string]$_.id -ne $Id })
+    if (@($script:Tasks).Count -eq $beforeCount) {
+        return New-TaskOperationResult $false "" "" $false $null
+    }
+    Save-Tasks
+    return New-TaskOperationResult $true "TaskDeleted" "" $true $null
+}
+
 function Set-TaskTitle([string]$Id, [string]$Title) {
     $task = Get-TaskById $Id
     if ($null -eq $task) {

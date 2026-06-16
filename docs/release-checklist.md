@@ -1,4 +1,4 @@
-# Release Checklist
+﻿# Release Checklist
 
 Last updated: 2026-06-14
 
@@ -68,6 +68,6 @@ Before a public release, still run a short manual UI pass:
 2. Add a task.
 3. Schedule it to Today.
 4. Start, pause, resume, and stop a pomodoro.
-5. Enter and exit watermark mode.
+5. Enter and exit blur mode.
 6. Change window row count.
 7. Close and reopen the app to confirm persistence.

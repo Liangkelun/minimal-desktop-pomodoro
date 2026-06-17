@@ -71,9 +71,12 @@ function Select-AudioFileFromButton([System.Windows.Forms.Button]$Button) {
 
     if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         Set-ObjectPropertyValue $tag.State $tag.Property $dialog.FileName
+        if ($null -ne $tag.Library) { $item = [pscustomobject]@{ Label = T "AudioFile"; Path = $dialog.FileName; IsCustom = $true }; $tag.Library.Items.Add($item) | Out-Null; $tag.Library.SelectedItem = $item }
         $Button.Text = "...*"
         Set-Status ((T "AudioSelected") + ": " + [System.IO.Path]::GetFileName($dialog.FileName))
-        Play-AudioPreview $tag
+        if ($null -eq $tag.Library) {
+            Play-AudioPreview $tag
+        }
     }
 }
 
@@ -114,48 +117,36 @@ function Set-LoopToggleVisual([System.Windows.Forms.CheckBox]$Loop) {
 }
 
 function New-AudioSettingControl([bool]$Checked, [object]$AudioState, [string]$Property, [string]$Kind, [bool]$IncludeLoop, [bool]$LoopChecked) {
-    $panel = New-Object System.Windows.Forms.FlowLayoutPanel
-    $panel.Dock = [System.Windows.Forms.DockStyle]::Fill
-    $panel.FlowDirection = [System.Windows.Forms.FlowDirection]::LeftToRight
-    $panel.WrapContents = $false
-    $panel.Margin = New-Object System.Windows.Forms.Padding(0)
-    $panel.Padding = New-Object System.Windows.Forms.Padding(0)
-    $panel.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
-
+    $panel = New-Object System.Windows.Forms.TableLayoutPanel
+    $panel.Dock = [System.Windows.Forms.DockStyle]::Fill; $panel.RowCount = 1; $panel.ColumnCount = 3; $panel.Margin = New-Object System.Windows.Forms.Padding(0); $panel.Padding = New-Object System.Windows.Forms.Padding(0); $panel.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+    $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 26))) | Out-Null; $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null; $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 34))) | Out-Null
+    if ($IncludeLoop) { $panel.ColumnCount = 4; $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 34))) | Out-Null }
     $check = New-Object System.Windows.Forms.CheckBox
-    $check.Width = 24
-    $check.Height = 24
-    $check.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 0)
-    $check.Checked = $Checked
-    $check.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind }
-    $check.Add_CheckedChanged({
-        param($sender, $eventArgs)
-        if ($sender.Checked) {
-            Play-AudioPreview $sender.Tag
-        }
-    })
-    $panel.Controls.Add($check)
-
-    $button = New-Button "..." 44
-    $button.Height = 24
-    $button.Margin = New-Object System.Windows.Forms.Padding(6, 1, 0, 0)
-    if (-not [string]::IsNullOrWhiteSpace([string](Get-ObjectPropertyValue $AudioState $Property))) {
-        $button.Text = "...*"
-    }
-    $button.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind }
-    $button.Add_Click({
-        param($sender, $eventArgs)
-        Select-AudioFileFromButton $sender
-    })
-    $panel.Controls.Add($button)
-
+    $check.Width = 24; $check.Height = 24; $check.Margin = New-Object System.Windows.Forms.Padding(0, 2, 0, 0); $check.Checked = $Checked; $check.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind }
+    $check.Add_CheckedChanged({ param($sender, $eventArgs) if ($sender.Checked) { Play-AudioPreview $sender.Tag } })
+    $panel.Controls.Add($check, 0, 0)
+    $library = New-Object System.Windows.Forms.ComboBox
+    $library.Dock = [System.Windows.Forms.DockStyle]::Fill; $library.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $library.DisplayMember = "Label"; $library.ValueMember = "Path"; $library.Height = 24; $library.Margin = New-Object System.Windows.Forms.Padding(4, 1, 0, 0)
+    $map = @{ start = @("focus-start.wav", "break-start.wav"); end = @("break-start.wav", "focus-start.wav"); work = @("focus-loop.mp3", "focus-loop.wav", "break-loop.mp3", "break-loop.wav"); break = @("break-loop.mp3", "break-loop.wav", "focus-loop.mp3", "focus-loop.wav") }
+    $prefix = "Built-in "; if ([string]$script:Settings.Language -ne "en-US") { $prefix = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5YaF572uIA==")) }
+    if ($map.ContainsKey($Kind)) { foreach ($fileName in $map[$Kind]) { $path = Get-DefaultAudioPath $fileName; if (-not [string]::IsNullOrWhiteSpace($path)) { $library.Items.Add([pscustomobject]@{ Label = "$prefix$fileName"; Path = $path; IsCustom = $false }) | Out-Null } } }
+    $button = New-Button "..." 32
+    $button.Dock = [System.Windows.Forms.DockStyle]::Fill; $button.Height = 24; $button.Margin = New-Object System.Windows.Forms.Padding(4, 1, 0, 0); $button.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind; Library = $library }
+    $button.Add_Click({ param($sender, $eventArgs) Select-AudioFileFromButton $sender })
+    $current = [string](Get-ObjectPropertyValue $AudioState $Property); foreach ($item in $library.Items) { if ([string]::Equals([string]$item.Path, $current, [System.StringComparison]::OrdinalIgnoreCase)) { $library.SelectedItem = $item; break } }
+    if ($library.SelectedIndex -lt 0 -and -not [string]::IsNullOrWhiteSpace($current)) { $button.Text = "...*"; $custom = [pscustomobject]@{ Label = T "AudioFile"; Path = $current; IsCustom = $true }; $library.Items.Add($custom) | Out-Null; $library.SelectedItem = $custom }
+    elseif ($library.SelectedIndex -lt 0 -and $library.Items.Count -gt 0) { $library.SelectedIndex = 0 }
+    $library.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind; Button = $button }
+    $library.Add_SelectedIndexChanged({ param($sender, $eventArgs) if ($null -eq $sender.SelectedItem) { return }; $tag = $sender.Tag; $item = $sender.SelectedItem; Set-ObjectPropertyValue $tag.State $tag.Property ([string]$item.Path); if ([bool]$item.IsCustom) { $tag.Button.Text = "...*" } else { $tag.Button.Text = "..." }; Play-AudioPreview $tag })
+    $panel.Controls.Add($library, 1, 0); $panel.Controls.Add($button, 2, 0)
     $loop = $null
     if ($IncludeLoop) {
         $loop = New-Object System.Windows.Forms.CheckBox
         $loop.Appearance = [System.Windows.Forms.Appearance]::Button
         $loop.Width = 30
         $loop.Height = 24
-        $loop.Margin = New-Object System.Windows.Forms.Padding(6, 1, 0, 0)
+        $loop.Dock = [System.Windows.Forms.DockStyle]::Fill
+        $loop.Margin = New-Object System.Windows.Forms.Padding(4, 1, 0, 1)
         $loop.TextAlign = [System.Drawing.ContentAlignment]::MiddleCenter
         $loop.Checked = $LoopChecked
         $loop.Add_CheckedChanged({
@@ -163,12 +154,13 @@ function New-AudioSettingControl([bool]$Checked, [object]$AudioState, [string]$P
             Set-LoopToggleVisual ([System.Windows.Forms.CheckBox]$sender)
         })
         Set-LoopToggleVisual $loop
-        $panel.Controls.Add($loop)
+        $panel.Controls.Add($loop, 3, 0)
     }
 
     return [pscustomobject]@{
         Panel = $panel
         Check = $check
+        Library = $library
         Loop = $loop
     }
 }

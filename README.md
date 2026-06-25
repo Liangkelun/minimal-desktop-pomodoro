@@ -19,13 +19,19 @@
 
 ## 启动
 
-直接运行：
+解压发布包后，推荐直接双击顶层入口：
+
+```text
+Start Minimal Desktop Pomodoro.vbs
+```
+
+也可以直接运行主脚本：
 
 ```powershell
 powershell -NoProfile -STA -ExecutionPolicy Bypass -File .\task-pomodoro\TaskPomodoro.ps1
 ```
 
-无控制台启动：
+内部无控制台启动器位于：
 
 ```text
 task-pomodoro\StartTaskPomodoro.vbs
@@ -83,6 +89,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\task-pomodoro\scripts\New-
 点击右上角 `~` 进入虚化模式。虚化模式下只保留透明背景上的任务文字层，并可点击穿透；右上角 `△` 是退出点。
 
 如果误入虚化模式，移动鼠标到窗口右上角，点击 `△` 退出。
+
+右键 `~` 可打开虚化菜单：`转换`、`翻译/停止翻译`、`翻译设置`。翻译默认只用本地核心词典和 UI Automation 读取选区，不自动复制、不写剪贴板、不保存翻译历史。可选剪贴板监听只读取用户手动复制的英文文本，用于 UIA 读不到选区的软件兼容。
 
 ## 当前限制
 

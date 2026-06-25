@@ -1,80 +1,47 @@
 # This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
 
-function Get-MediaPath([string]$FileName) {
-    $path = Join-Path $env:WINDIR "Media\$FileName"
-    if (Test-Path -LiteralPath $path) { return $path }
-    return $null
-}
-
 function Stop-BackgroundAudio {
+    Stop-PreviewAudio
     if ($null -ne $script:BackgroundPlayer) {
         try { $script:BackgroundPlayer.Stop(); $script:BackgroundPlayer.Dispose() } catch {}
         $script:BackgroundPlayer = $null
     }
     Stop-ComAudio "BackgroundMediaPlayer"
+    $script:BackgroundAudioPhase = ""
+    $script:BackgroundAudioVolume = -1
 }
 
-function Stop-ComAudio([string]$VariableName) {
-    $player = Get-Variable -Scope Script -Name $VariableName -ValueOnly -ErrorAction SilentlyContinue
+function Get-AudioVolume {
+    if ($null -ne $script:Settings -and $script:Settings.PSObject.Properties.Name -contains "AudioVolume") { return [int][Math]::Max(0, [Math]::Min(100, [int]$script:Settings.AudioVolume)) }
+    return 100
+}
+
+function Set-BackgroundAudioVolume([int]$Volume) {
+    $Volume = [Math]::Max(0, [Math]::Min(100, $Volume))
+    if ([int]$script:BackgroundAudioVolume -eq $Volume) { return }
+    $player = Get-Variable -Scope Script -Name "BackgroundMediaPlayer" -ValueOnly -ErrorAction SilentlyContinue
     if ($null -ne $player) {
-        try { $player.controls.stop(); $player.close() } catch {}
-        try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($player) } catch {}
-        Set-Variable -Scope Script -Name $VariableName -Value $null
+        try { $player.settings.volume = $Volume } catch {}
     }
+    $script:BackgroundAudioVolume = $Volume
 }
 
-function Test-WavAudio([string]$Path) { return ([System.IO.Path]::GetExtension([string]$Path).ToLowerInvariant() -eq ".wav") }
-
-function Start-ComAudio([string]$Path, [bool]$Loop, [string]$Slot, [bool]$Sync) {
-    try {
-        if (-not $Sync -and -not [string]::IsNullOrWhiteSpace($Slot)) { Stop-ComAudio $Slot }
-        $player = New-Object -ComObject WMPlayer.OCX
-        $player.settings.autoStart = $false
-        $player.settings.setMode("loop", $Loop)
-        $player.URL = $Path
-        $player.controls.play()
-        if (-not [string]::IsNullOrWhiteSpace($Slot)) { Set-Variable -Scope Script -Name $Slot -Value $player }
-        if ($Sync) {
-            $until = (Get-Date).AddSeconds(30)
-            while ((Get-Date) -lt $until -and $player.playState -notin @(1, 8)) { Start-Sleep -Milliseconds 100 }
-            try { $player.close() } catch {}
-            try { [void][System.Runtime.InteropServices.Marshal]::ReleaseComObject($player) } catch {}
-        }
-        return $true
-    }
-    catch { return $false }
+function Reset-BackgroundAudioFade {
+    $script:BackgroundAudioVolume = -1
+    Set-BackgroundAudioVolume (Get-AudioVolume)
 }
 
-function Play-Wav([string]$Path, [System.Media.SystemSound]$Fallback) {
-    if (-not [string]::IsNullOrWhiteSpace($Path) -and (Test-Path -LiteralPath $Path)) {
-        try {
-            if (-not (Test-WavAudio $Path)) {
-                if (Start-ComAudio $Path $false "PreviewMediaPlayer" $false) { return }
-                throw "unsupported audio"
-            }
-            $player = New-Object System.Media.SoundPlayer($Path)
-            $player.Play()
-            return
-        }
-        catch {}
+function Update-BackgroundAudioFade([int]$SecondsRemaining, [string]$Phase) {
+    if ($Phase -notin @("work", "break", "starter")) { return }
+    $player = Get-Variable -Scope Script -Name "BackgroundMediaPlayer" -ValueOnly -ErrorAction SilentlyContinue
+    if ($null -eq $player) { return }
+    $fadeSeconds = 8
+    if ($SecondsRemaining -gt $fadeSeconds) {
+        Reset-BackgroundAudioFade
+        return
     }
-    if ($null -ne $Fallback) { $Fallback.Play() }
-}
-
-function Play-WavSync([string]$Path, [System.Media.SystemSound]$Fallback) {
-    if (-not [string]::IsNullOrWhiteSpace($Path) -and (Test-Path -LiteralPath $Path)) {
-        try {
-            if (-not (Test-WavAudio $Path)) {
-                if (Start-ComAudio $Path $false "" $true) { return }
-                throw "unsupported audio"
-            }
-            $player = New-Object System.Media.SoundPlayer($Path)
-            $player.PlaySync()
-            return
-        }
-        catch {}
-    }
-    if ($null -ne $Fallback) { $Fallback.Play() }
+    $volume = [int][Math]::Round((Get-AudioVolume) * ([Math]::Max(0, $SecondsRemaining) / $fadeSeconds))
+    Set-BackgroundAudioVolume $volume
 }
 
 function Resolve-AudioFile([string]$CustomPath, [string]$DefaultFileName) {
@@ -92,6 +59,9 @@ function Play-EndSound {
 }
 
 function Get-BackgroundMediaPath([string]$Phase) {
+    if ($Phase -eq "starter") {
+        return Resolve-AudioFile $script:Settings.StarterMusicFile "chimes.wav"
+    }
     if ($Phase -eq "break") {
         return Resolve-AudioFile $script:Settings.BreakMusicFile "chord.wav"
     }
@@ -103,16 +73,23 @@ function Play-WorkMusicPreview { Play-Wav (Get-BackgroundMediaPath "work") ([Sys
 
 function Play-BreakMusicPreview { Play-Wav (Get-BackgroundMediaPath "break") ([System.Media.SystemSounds]::Asterisk) }
 
+function Play-VolumePreview([int]$Volume) { Play-Wav (Resolve-AudioFile $script:Settings.StartSoundFile "ding.wav") ([System.Media.SystemSounds]::Asterisk) $Volume }
+
 function Start-BackgroundAudio([string]$Phase) {
+    Stop-PreviewAudio
     Stop-BackgroundAudio
 
+    if ($Phase -notin @("work", "break", "starter")) { return }
     if ($Phase -eq "work" -and -not [bool]$script:Settings.WorkMusic) { return }
     if ($Phase -eq "break" -and -not [bool]$script:Settings.BreakMusic) { return }
+    if ($Phase -eq "starter" -and -not [bool]$script:Settings.StarterMusic) { return }
 
     $path = Get-BackgroundMediaPath $Phase
     if ([string]::IsNullOrWhiteSpace($path)) { return }
 
     try {
+        $script:BackgroundAudioPhase = $Phase
+        Reset-BackgroundAudioFade
         $loop = $false
         if ($Phase -eq "work") {
             $loop = [bool]$script:Settings.WorkMusicLoop
@@ -120,17 +97,10 @@ function Start-BackgroundAudio([string]$Phase) {
         elseif ($Phase -eq "break") {
             $loop = [bool]$script:Settings.BreakMusicLoop
         }
-        if (-not (Test-WavAudio $path)) {
-            if (-not (Start-ComAudio $path $loop "BackgroundMediaPlayer" $false)) { $script:BackgroundMediaPlayer = $null }
-            return
+        elseif ($Phase -eq "starter") {
+            $loop = [bool]$script:Settings.StarterMusicLoop
         }
-        $script:BackgroundPlayer = New-Object System.Media.SoundPlayer($path)
-        if ($loop) {
-            $script:BackgroundPlayer.PlayLooping()
-        }
-        else {
-            $script:BackgroundPlayer.Play()
-        }
+        if (-not (Start-ComAudio $path $loop "BackgroundMediaPlayer" $false (Get-AudioVolume))) { $script:BackgroundMediaPlayer = $null }
     }
     catch {
         $script:BackgroundPlayer = $null

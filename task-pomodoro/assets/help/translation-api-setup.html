@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>翻译配置教程</title>
+  <style>
+    body { margin: 0; font-family: "Microsoft YaHei UI", "Segoe UI", sans-serif; color: #111827; background: #f8fafc; line-height: 1.65; }
+    main { max-width: 860px; margin: 0 auto; padding: 28px 22px 44px; }
+    h1 { font-size: 28px; margin: 0 0 16px; }
+    h2 { font-size: 20px; margin: 30px 0 10px; }
+    h3 { font-size: 16px; margin: 18px 0 8px; }
+    p, li { font-size: 14px; }
+    code { background: #eef2f7; border-radius: 4px; padding: 1px 5px; }
+    pre { background: #111827; color: #f9fafb; border-radius: 6px; padding: 12px; overflow: auto; }
+    a { color: #0f766e; }
+    .note { background: #ecfdf5; border-left: 4px solid #10b981; padding: 10px 12px; border-radius: 4px; }
+    .warn { background: #fff7ed; border-left: 4px solid #f97316; padding: 10px 12px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<main>
+  <h1>翻译配置教程</h1>
+  <p class="note">默认翻译使用本地按需索引查词，不联网、不写剪贴板、不保存翻译历史。只有你主动配置并启用 API 后，选中文本才会发送到对应服务。</p>
+  <p class="warn">自动取词依赖目标软件暴露 UIA 选中文本；如果读不到选区，可启用剪贴板监听后手动复制英文文本作为兜底。程序不会模拟 <code>Ctrl+C</code>，也不会临时写入或恢复剪贴板。</p>
+
+  <h2 id="api">API 配置</h2>
+  <h3>自定义接口</h3>
+  <p>适合你已有自己的翻译服务或代理。程序会向你填写的地址发送 JSON：</p>
+  <pre>{ "text": "hello", "source": "auto", "target": "zh" }</pre>
+  <p>接口返回 JSON 即可：</p>
+  <pre>{ "translation": "你好" }</pre>
+  <p>如需鉴权，把密钥填入 API key。程序会用 Windows 当前用户 DPAPI 加密保存，但你仍应自行保存原始密钥。</p>
+
+  <h3>DeepL</h3>
+  <ol>
+    <li>打开 <a href="https://developers.deepl.com/docs/api-reference/translate">DeepL Translate API 文档</a>。</li>
+    <li>确认你的账号类型：Free 使用 <code>https://api-free.deepl.com</code>，Pro 使用 <code>https://api.deepl.com</code>。</li>
+    <li>在程序里选择 DeepL，选择 Free 或 Pro，填入 API key，然后点击“测试”。</li>
+  </ol>
+
+  <h3>百度翻译</h3>
+  <ol>
+    <li>打开 <a href="https://api.fanyi.baidu.com/doc/21">百度翻译开放平台通用翻译 API 文档</a>。</li>
+    <li>创建应用后复制 App ID 和密钥。</li>
+    <li>在程序里选择百度翻译，填入 App ID 和 Secret，然后点击“测试”。</li>
+  </ol>
+
+  <p class="warn">在线 API 可能产生服务商费用或额度消耗。本程序默认月度上限为 100000 字符，可在翻译设置中调整。</p>
+
+  <h2 id="dictionary">完整版词典</h2>
+  <p>默认安装包内置核心词典和同名索引，保证程序轻、启动快、离线可用。完整版词典作为独立文件发布，文件格式应保持为本系统可直接导入的 TSV，并建议随附同名 <code>.idx</code> 索引：</p>
+  <pre>word    phonetic    pos    translation    tags    frequency    exchange</pre>
+  <p>推荐文件名：<code>task-pomodoro-full-dictionary.tsv</code>。下载后解压为 TSV，再在翻译设置里点击“导入词典”。</p>
+  <ul>
+    <li>GitHub 发布页：<a href="https://github.com/Liangkelun/minimal-desktop-pomodoro/releases">minimal-desktop-pomodoro releases</a></li>
+    <li>Gitee 镜像：镜像仓库和 release asset 稳定后再在此处补充。</li>
+  </ul>
+  <p>点击“获取完整版”时，程序会按当前策略尝试远程源；失败后检查本机缓存 <code>task-pomodoro/data/dictionaries/task-pomodoro-full-dictionary.tsv</code> 和开发目录 <code>local-assets/dictionaries/task-pomodoro-full-dictionary.tsv</code>。首次成功后后续默认本地优先。已绑定词典时，“导入词典”会变为“解绑词典”。</p>
+  <p>词典来源和许可需随文件说明一起发布；当前默认词典由 ECDICT 生成，遵循 MIT license。</p>
+</main>
+</body>
+</html>

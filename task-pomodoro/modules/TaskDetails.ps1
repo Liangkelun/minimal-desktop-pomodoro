@@ -72,6 +72,7 @@ function Resolve-TaskLinkTarget([object]$Target) {
 
 function Write-TaskLinkDebug([string]$Source, [string]$TaskId, [string]$Target, [object]$Task) {
     try {
+        if ([string]$env:TASK_POMODORO_LINK_DEBUG -ne "1") { return }
         if ([string]::IsNullOrWhiteSpace([string]$script:DataDir)) {
             return
         }

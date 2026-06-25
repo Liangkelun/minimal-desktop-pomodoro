@@ -1,6 +1,6 @@
-# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
+﻿# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
 
-function Complete-TaskTitleInlineEdit([System.Windows.Forms.TextBox]$Box, [bool]$Cancel) {
+function Finish-TaskTitleInlineEdit([System.Windows.Forms.TextBox]$Box, [bool]$Cancel) {
     if ($null -eq $Box -or $Box.IsDisposed -or $Box.Tag.Closed) {
         return
     }
@@ -8,7 +8,7 @@ function Complete-TaskTitleInlineEdit([System.Windows.Forms.TextBox]$Box, [bool]
     $state.Closed = $true
     $changed = (-not $Cancel -and -not [string]::IsNullOrWhiteSpace($Box.Text) -and $Box.Text.Trim() -ne [string]$state.Original)
     if ($changed) {
-        Set-TaskTitle ([string]$state.Id) $Box.Text | Out-Null
+        Invoke-TaskRenameWorkflow ([string]$state.Id) $Box.Text | Out-Null
     }
     $list = $state.List
     $Box.Dispose()
@@ -65,14 +65,14 @@ function Start-TaskTitleInlineEdit([System.Windows.Forms.ListBox]$List, [object]
         param($sender, $eventArgs)
         if ($eventArgs.KeyCode -eq [System.Windows.Forms.Keys]::Enter) {
             $eventArgs.SuppressKeyPress = $true
-            Complete-TaskTitleInlineEdit $sender $false
+            Finish-TaskTitleInlineEdit $sender $false
         }
         elseif ($eventArgs.KeyCode -eq [System.Windows.Forms.Keys]::Escape) {
             $eventArgs.SuppressKeyPress = $true
-            Complete-TaskTitleInlineEdit $sender $true
+            Finish-TaskTitleInlineEdit $sender $true
         }
     })
-    $edit.Add_Leave({ param($sender, $eventArgs) Complete-TaskTitleInlineEdit $sender $false })
+    $edit.Add_Leave({ param($sender, $eventArgs) Finish-TaskTitleInlineEdit $sender $false })
     $script:TaskTitleEditBox = $edit
     $editHost.Controls.Add($edit)
     $edit.BringToFront()

@@ -27,13 +27,9 @@ function Ensure-HelpButton {
 }
 
 function Show-HelpTopic([string]$TitleKey, [string]$TextKey) {
-    if ($null -ne $script:Form -and $script:WatermarkMode) {
-        $script:Form.SetClickThrough($false)
-    }
+    if (Test-WatermarkRuntimeActive) { Suspend-WatermarkRuntimeClickThrough }
     [System.Windows.Forms.MessageBox]::Show((T $TextKey), (T $TitleKey), [System.Windows.Forms.MessageBoxButtons]::OK, [System.Windows.Forms.MessageBoxIcon]::Information) | Out-Null
-    if ($script:WatermarkMode) {
-        Update-WatermarkClickThrough
-    }
+    if (Test-WatermarkRuntimeActive) { Update-WatermarkRuntimeClickThrough }
 }
 
 function Show-HelpSponsor {
@@ -42,9 +38,7 @@ function Show-HelpSponsor {
         Show-HelpTopic "HelpSponsor" "HelpSponsorText"
         return
     }
-    if ($null -ne $script:Form -and $script:WatermarkMode) {
-        $script:Form.SetClickThrough($false)
-    }
+    if (Test-WatermarkRuntimeActive) { Suspend-WatermarkRuntimeClickThrough }
 
     $dialog = New-Object System.Windows.Forms.Form
     $image = $null
@@ -92,9 +86,7 @@ function Show-HelpSponsor {
     finally {
         if ($null -ne $image) { $image.Dispose() }
         $dialog.Dispose()
-        if ($script:WatermarkMode) {
-            Update-WatermarkClickThrough
-        }
+        if (Test-WatermarkRuntimeActive) { Update-WatermarkRuntimeClickThrough }
     }
 }
 
@@ -134,10 +126,11 @@ function Show-HelpMenu([System.Windows.Forms.Control]$Owner) {
         return
     }
     $menu = New-Object System.Windows.Forms.ContextMenuStrip
-    Add-HelpMenuItem $menu "HelpQuick" "HelpTitle" "HelpText"
+    Add-HelpMenuItem $menu "HelpQuick" "HelpQuick" "HelpText"
     Add-HelpMenuItem $menu "HelpDiagram" "HelpDiagram" "HelpDiagramText"
     Add-HelpMenuItem $menu "HelpRules" "HelpRules" "HelpRulesText"
     Add-HelpMenuItem $menu "HelpShortcuts" "HelpShortcuts" "HelpShortcutsText"
+    Add-HelpMenuItem $menu "TranslationHelp" "TranslationHelp" "TranslationHelpText"
     Add-HelpActionMenuItem $menu "Settings" { Set-ActiveView "settings" } $true
     $menu.Items.Add((New-Object System.Windows.Forms.ToolStripSeparator)) | Out-Null
     $update = New-Object System.Windows.Forms.ToolStripMenuItem

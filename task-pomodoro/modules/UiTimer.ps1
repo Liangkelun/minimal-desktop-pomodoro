@@ -26,23 +26,22 @@ function Set-UiTimerInterval([int]$Milliseconds) {
 
 function Timer-Tick {
     Update-DateLabel
-    $archivedCount = Invoke-DailyArchiveIfDue
-    if ($archivedCount -gt 0) {
-        Set-Status (T "DailyArchivedTasks")
-        Render-CurrentView
+    $archiveResult = Invoke-DailyArchiveIfDueResult
+    if ([int]$archiveResult.Data -gt 0) {
+        Invoke-AppActionResult $archiveResult
     }
-    Update-WatermarkClickThrough
+    Update-WatermarkRuntimeClickThrough
     Update-BottomChromeVisibility
     Update-SizeToggleButton
-    if ($script:TimerState -eq "running") {
-        $remaining = [int][Math]::Ceiling(($script:PomodoroEndAt - (Get-Date)).TotalSeconds)
-        if ($remaining -le 0) {
-            $script:SecondsRemaining = 0
-            Invoke-AppActionResult (Complete-PomodoroFromUi)
-        }
-        else {
-            $script:SecondsRemaining = $remaining
-            Update-TimerLabels
-        }
+    $pomodoroTick = Update-PomodoroRuntimeTick
+    if ($null -eq $pomodoroTick) { return }
+    if ([string]$pomodoroTick.Kind -eq "complete") {
+        Invoke-AppActionResult (Complete-PomodoroTickFromUi)
+        if ($null -ne $script:WatermarkGhostPanel -and -not $script:WatermarkGhostPanel.IsDisposed) { $script:WatermarkGhostPanel.Invalidate() }
+        return
     }
+    if ([string]$pomodoroTick.Kind -eq "pause-threshold") { Invoke-AppActionResult (New-PomodoroPauseThresholdResult $pomodoroTick); return }
+    if ([bool]$pomodoroTick.ShouldUpdateTimer) { Update-TimerLabels }
+    if ([bool]$pomodoroTick.ShouldInvalidateTask -and $null -ne $script:TaskListBox -and -not $script:TaskListBox.IsDisposed) { $script:TaskListBox.Invalidate() }
+    if ([bool]$pomodoroTick.ShouldInvalidateTask -and $null -ne $script:WatermarkGhostPanel -and -not $script:WatermarkGhostPanel.IsDisposed) { $script:WatermarkGhostPanel.Invalidate() }
 }

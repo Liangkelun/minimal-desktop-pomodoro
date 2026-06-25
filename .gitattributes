@@ -6,3 +6,6 @@
 *.png binary
 *.wav binary
 *.zip binary
+
+# Generated dictionary TSVs use trailing tabs for empty data columns.
+task-pomodoro/assets/dict/*.tsv -whitespace

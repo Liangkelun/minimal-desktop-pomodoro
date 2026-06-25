@@ -28,16 +28,55 @@ function Test-GitUpdateEnabled {
     }
 }
 
-function Start-AppInstanceLock {
-    $createdNew = $false
-    $name = Get-AppScopedMutexName "instance"
-    $script:SingleInstanceMutex = New-Object System.Threading.Mutex($true, $name, [ref]$createdNew)
-    if ($createdNew) {
+function Ensure-AppWindowActivationTypes {
+    if (([System.Management.Automation.PSTypeName]'TaskPomodoroWindowActivation').Type) { return }
+    Add-Type -Language CSharp -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+public static class TaskPomodoroWindowActivation
+{
+    [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern IntPtr FindWindow(string lpClassName, string lpWindowName);
+    [DllImport("user32.dll")] public static extern bool ShowWindow(IntPtr hWnd, int nCmdShow);
+    [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hWnd);
+}
+"@
+}
+
+function Show-ExistingAppWindow {
+    Ensure-AppWindowActivationTypes
+    $titles = @((T "AppTitle"), [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5p6B566A5qGM6Z2i55Wq6IyE")), "Minimal Desktop Pomodoro")
+    foreach ($process in [System.Diagnostics.Process]::GetProcessesByName("powershell")) {
+        try {
+            if ($process.Id -eq $PID -or $process.MainWindowHandle -eq [IntPtr]::Zero) { continue }
+            if ($titles -notcontains [string]$process.MainWindowTitle) { continue }
+            [TaskPomodoroWindowActivation]::ShowWindow($process.MainWindowHandle, 9) | Out-Null
+            [TaskPomodoroWindowActivation]::SetForegroundWindow($process.MainWindowHandle) | Out-Null
+            return $true
+        }
+        catch {}
+    }
+    return $false
+}
+function Start-AppInstanceLock([bool]$Silent = $false) {
+    if ($null -ne $script:SingleInstanceMutex) {
         return $true
     }
-    $script:SingleInstanceMutex.Dispose()
-    $script:SingleInstanceMutex = $null
-    [System.Windows.Forms.MessageBox]::Show((T "AppAlreadyRunning"), (T "AppTitle")) | Out-Null
+    $createdNew = $false
+    $mutex = New-Object System.Threading.Mutex($false, (Get-AppScopedMutexName "instance"), [ref]$createdNew)
+    $acquired = $false
+    try {
+        try { $acquired = $mutex.WaitOne(0) }
+        catch [System.Threading.AbandonedMutexException] { $acquired = $true }
+        if ($acquired) {
+            $script:SingleInstanceMutex = $mutex
+            return $true
+        }
+    }
+    catch {
+        $acquired = $false
+    }
+    $mutex.Dispose()
+    if (-not $Silent) { Show-ExistingAppWindow | Out-Null }
     return $false
 }
 
@@ -60,7 +99,7 @@ function Start-TaskPomodoroProcess {
 }
 
 function Restart-TaskPomodoroApp {
-    Save-Settings
+    Save-AppLifecycleSettings
     Start-AppRelaunchHelper $PID | Out-Null
     if ($null -ne $script:Form -and -not $script:Form.IsDisposed) {
         $script:Form.Close()
@@ -81,7 +120,7 @@ function Invoke-GitUpdateAndRestart {
         return
     }
 
-    Save-Settings
+    Save-AppLifecycleSettings
     $repoRoot = Get-AppRepositoryRoot
     $scriptPath = Join-Path $script:RootDir "TaskPomodoro.ps1"
     $logPath = Join-Path $script:RootDir "update.log"

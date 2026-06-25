@@ -29,7 +29,7 @@ function Show-PomodoroSettingsDialog {
 
     $work = New-PomodoroNumberControl (Get-PomodoroWorkMinutes) 1 180
     $break = New-PomodoroNumberControl (Get-PomodoroBreakMinutes) 1 60
-    $roundsValue = [Math]::Max(1, [int]$script:PomodoroSessionMaxRounds); if ($roundsValue -le 0) { $roundsValue = [int]$script:Settings.PomodoroRounds }
+    $roundsValue = [Math]::Max(1, (Get-PomodoroSessionMaxRounds)); if ($roundsValue -le 0) { $roundsValue = [int]$script:Settings.PomodoroRounds }
     $rounds = New-PomodoroNumberControl $roundsValue 1 24
     $auto = New-CheckOnlyControl (Get-PomodoroAutoStartNext)
     Add-SettingRow $grid (T "WorkMinutes") $work 0

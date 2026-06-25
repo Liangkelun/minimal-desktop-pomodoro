@@ -58,6 +58,8 @@ function Draw-TaskListItem([System.Windows.Forms.ListBox]$List, [System.Windows.
 
     $checkFont = $null
     $textFont = $null
+    $timerFont = $null
+    $timerBrush = $null
     try {
         $textFlags = [System.Windows.Forms.TextFormatFlags]::VerticalCenter -bor
             [System.Windows.Forms.TextFormatFlags]::SingleLine -bor
@@ -109,9 +111,30 @@ function Draw-TaskListItem([System.Windows.Forms.ListBox]$List, [System.Windows.
         }
         $textFont = New-Object System.Drawing.Font($List.Font, $fontStyle)
         [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, $displayText, $textFont, $textRect, $textColor, $textFlags)
+
+        $inlineText = ""
+        if ((Get-TaskListMode $List) -eq "today" -and $null -ne $task) { $inlineText = Get-TaskInlineCountdownText ([string]$task.id) }
+        if (-not [string]::IsNullOrWhiteSpace($inlineText)) {
+            $timerFont = New-Object System.Drawing.Font($List.Font, [System.Drawing.FontStyle]::Bold)
+            $timerSize = [System.Windows.Forms.TextRenderer]::MeasureText($inlineText, $timerFont)
+            $timerWidth = [Math]::Max(54, [int]$timerSize.Width + 12)
+            if ($textRect.Width -gt ($timerWidth + 20)) {
+                $timerRect = New-Object System.Drawing.Rectangle -ArgumentList @(($textRect.Right - $timerWidth), $textRect.Y, $timerWidth, $textRect.Height)
+                $timerBackColor = $List.BackColor
+                if ($selected) { $timerBackColor = [System.Drawing.SystemColors]::Highlight }
+                $timerBrush = New-Object System.Drawing.SolidBrush($timerBackColor)
+                $EventArgs.Graphics.FillRectangle($timerBrush, $timerRect)
+                $timerColor = [System.Drawing.Color]::FromArgb(24, 96, 56)
+                if ($selected) { $timerColor = $textColor }
+                $timerFlags = $textFlags -bor [System.Windows.Forms.TextFormatFlags]::HorizontalCenter
+                [System.Windows.Forms.TextRenderer]::DrawText($EventArgs.Graphics, $inlineText, $timerFont, $timerRect, $timerColor, $timerFlags)
+            }
+        }
     }
     finally {
         if ($null -ne $textFont) { $textFont.Dispose() }
+        if ($null -ne $timerFont) { $timerFont.Dispose() }
+        if ($null -ne $timerBrush) { $timerBrush.Dispose() }
         if ($null -ne $checkFont) { $checkFont.Dispose() }
     }
     $EventArgs.DrawFocusRectangle()

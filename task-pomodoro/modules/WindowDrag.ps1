@@ -2,7 +2,7 @@
 
 function Start-WindowDrag {
     $script:WindowDragStart = [System.Windows.Forms.Cursor]::Position
-    $script:WindowDragOrigin = $script:Form.Location
+    $script:WindowDragOrigin = Get-WindowRuntimeLocation
 }
 
 function Move-WindowDrag {
@@ -12,7 +12,7 @@ function Move-WindowDrag {
     $current = [System.Windows.Forms.Cursor]::Position
     $newX = [int]([int]$script:WindowDragOrigin.X + [int]$current.X - [int]$script:WindowDragStart.X)
     $newY = [int]([int]$script:WindowDragOrigin.Y + [int]$current.Y - [int]$script:WindowDragStart.Y)
-    $script:Form.Location = New-Object System.Drawing.Point -ArgumentList @($newX, $newY)
+    Set-WindowRuntimeLocation (New-Object System.Drawing.Point -ArgumentList @($newX, $newY))
 }
 
 function Stop-WindowDrag {

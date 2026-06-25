@@ -3,6 +3,25 @@
 function Get-PomodoroWorkMinutes { if ([int]$script:PomodoroSessionWorkMinutes -gt 0) { return [int]$script:PomodoroSessionWorkMinutes }; return [int]$script:Settings.WorkMinutes }
 function Get-PomodoroBreakMinutes { if ([int]$script:PomodoroSessionBreakMinutes -gt 0) { return [int]$script:PomodoroSessionBreakMinutes }; return [int]$script:Settings.ShortBreakMinutes }
 function Get-PomodoroAutoStartNext { if ($null -ne $script:PomodoroSessionAutoStartNext) { return [bool]$script:PomodoroSessionAutoStartNext }; return [bool]$script:Settings.AutoStartNextPomodoro }
+function Get-TaskStarterMinutes { return [Math]::Min(30, [Math]::Max(1, [int]$script:Settings.StarterMinutes)) }
+function Get-TaskStarterSeconds { return (Get-TaskStarterMinutes) * 60 }
+
+function Get-PomodoroSessionStartedCount { return [int]$script:PomodoroSessionStartedCount }
+function Get-PomodoroSessionMaxRounds { return [int]$script:PomodoroSessionMaxRounds }
+
+function Test-PomodoroSessionStartedForDifferentTask([string]$TaskId, [string]$CurrentTaskId) {
+    return ((Get-PomodoroSessionStartedCount) -gt 0 -and [string]$TaskId -ne [string]$CurrentTaskId)
+}
+
+function Add-PomodoroSessionStartedCount {
+    $script:PomodoroSessionStartedCount = (Get-PomodoroSessionStartedCount) + 1
+    return [int]$script:PomodoroSessionStartedCount
+}
+
+function Test-PomodoroSessionHasNextRound {
+    return ((Get-PomodoroSessionStartedCount) -lt (Get-PomodoroSessionMaxRounds))
+}
+
 
 function Reset-PomodoroSession {
     $script:PomodoroSessionWorkMinutes = 0
@@ -10,7 +29,7 @@ function Reset-PomodoroSession {
     $script:PomodoroSessionMaxRounds = 0
     $script:PomodoroSessionStartedCount = 0
     $script:PomodoroSessionAutoStartNext = $null
-    $script:CurrentPhasePlannedMinutes = 0
+    Clear-PomodoroRuntimePlannedDuration
 }
 
 function Get-InitialPomodoroRounds([string]$TaskId) {
@@ -42,26 +61,13 @@ function Set-PomodoroSessionOptions([int]$WorkMinutes, [int]$BreakMinutes, [int]
         $script:Settings.ShortBreakMinutes = [int]$script:PomodoroSessionBreakMinutes
         $script:Settings.PomodoroRounds = [int]$script:PomodoroSessionMaxRounds
         $script:Settings.AutoStartNextPomodoro = $AutoStartNext
-        Save-Settings
+        Save-PomodoroDefaultSettings
     }
     Update-CurrentPomodoroDuration
 }
 
 function Update-CurrentPomodoroDuration {
     $minutes = Get-PomodoroWorkMinutes
-    if ($script:TimerPhase -eq "break") { $minutes = Get-PomodoroBreakMinutes }
-    if ($script:TimerState -eq "idle") {
-        $script:SecondsRemaining = [int]$minutes * 60
-        return
-    }
-    $oldPlannedSeconds = [Math]::Max(1, [int]$script:CurrentPhasePlannedMinutes * 60)
-    $elapsed = $oldPlannedSeconds - [int]$script:SecondsRemaining
-    if ($script:TimerState -eq "running" -and $null -ne $script:PomodoroStartedAtDate) {
-        $elapsed = [int][Math]::Max(0, ((Get-Date) - $script:PomodoroStartedAtDate).TotalSeconds)
-    }
-    $script:CurrentPhasePlannedMinutes = [int]$minutes
-    $script:SecondsRemaining = [Math]::Max(0, ([int]$minutes * 60) - $elapsed)
-    if ($script:TimerState -eq "running") {
-        $script:PomodoroEndAt = (Get-Date).AddSeconds($script:SecondsRemaining)
-    }
+    if (Test-PomodoroRuntimeBreakPhase) { $minutes = Get-PomodoroBreakMinutes }
+    Update-PomodoroRuntimeDuration $minutes
 }

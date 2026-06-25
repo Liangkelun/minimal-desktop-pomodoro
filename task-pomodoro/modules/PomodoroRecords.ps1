@@ -16,3 +16,14 @@ function Append-PomodoroRecord([string]$TaskId, [string]$StartedAt, [string]$End
         $line | Add-Content -LiteralPath (Get-AppPath "PomodorosFile") -Encoding UTF8
     }
 }
+
+function Get-PomodoroRecords {
+    $path = Get-AppPath "PomodorosFile"
+    if (-not (Test-Path -LiteralPath $path)) { return @() }
+    $records = @()
+    foreach ($line in @(Get-Content -LiteralPath $path -Encoding UTF8 -ErrorAction SilentlyContinue)) {
+        if ([string]::IsNullOrWhiteSpace($line)) { continue }
+        try { $records += ($line | ConvertFrom-Json) } catch {}
+    }
+    return @($records)
+}

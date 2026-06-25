@@ -1,4 +1,4 @@
-﻿# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
+# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
 
 function Set-Status([string]$Message) {
     $script:StatusMessage = $Message
@@ -9,6 +9,7 @@ function Invoke-AppActionResult([object]$Result) {
     if ($null -eq $Result) {
         return
     }
+    Invoke-AppResultEvents $Result
     if (($Result.PSObject.Properties.Name -contains "MessageKey") -and -not [string]::IsNullOrWhiteSpace([string]$Result.MessageKey)) {
         [System.Windows.Forms.MessageBox]::Show((T ([string]$Result.MessageKey)), (T "AppTitle")) | Out-Null
     }
@@ -23,6 +24,7 @@ function Invoke-AppActionResult([object]$Result) {
     }
     if (($Result.PSObject.Properties.Name -contains "ShouldUpdateTimer") -and [bool]$Result.ShouldUpdateTimer) {
         Update-TimerLabels
+        if ($null -ne $script:TaskListBox -and -not $script:TaskListBox.IsDisposed) { $script:TaskListBox.Invalidate() }
     }
 }
 
@@ -58,6 +60,9 @@ function Update-NavText {
     if ($script:NavButtons.ContainsKey("timer")) {
         $script:NavButtons["timer"].Text = T "Pomodoro"
     }
+    if ($script:NavButtons.ContainsKey("inbox")) {
+        $script:NavButtons["inbox"].Text = T "Inbox"
+    }
     if ($script:NavButtons.ContainsKey("more")) {
         $script:NavButtons["more"].Text = T "More"
     }
@@ -83,6 +88,7 @@ function Render-CurrentView {
     if ($null -eq $script:ContentPanel) {
         return
     }
+    Stop-PreviewAudio
     $script:TaskInputRowStyle = $null
     $script:TaskInputBox = $null
     $script:StartButton = $null
@@ -93,6 +99,7 @@ function Render-CurrentView {
         "tasks" { Render-TaskView "tasks" }
         "today" { Render-TaskView "today" }
         "timer" { Render-TimerView }
+        "inbox" { Render-InboxView }
         "more" { Render-MoreView }
         "done" { Render-DoneView }
         "settings" { Ensure-TaskRowsVisible 11; Render-SettingsView }
@@ -100,4 +107,3 @@ function Render-CurrentView {
     }
     Update-BottomChromeVisibility
 }
-

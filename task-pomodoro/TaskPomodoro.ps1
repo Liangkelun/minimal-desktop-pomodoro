@@ -2,6 +2,36 @@
     [switch]$SelfTest
 )
 
+if (-not ([System.Management.Automation.PSTypeName]'TaskPomodoroDpiAwareness').Type) {
+    Add-Type -Language CSharp -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+
+public static class TaskPomodoroDpiAwareness
+{
+    private static readonly IntPtr DpiAwarenessContextUnaware = new IntPtr(-1);
+
+    [DllImport("user32.dll", SetLastError=true)]
+    private static extern bool SetProcessDpiAwarenessContext(IntPtr value);
+
+    [DllImport("shcore.dll", SetLastError=true)]
+    private static extern int SetProcessDpiAwareness(int value);
+
+    public static void UseStableUnawareMode()
+    {
+        try
+        {
+            if (SetProcessDpiAwarenessContext(DpiAwarenessContextUnaware)) { return; }
+        }
+        catch {}
+
+        try { SetProcessDpiAwareness(0); } catch {}
+    }
+}
+"@
+}
+[TaskPomodoroDpiAwareness]::UseStableUnawareMode()
+
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
 Add-Type -AssemblyName Microsoft.VisualBasic
@@ -61,6 +91,10 @@ public class TaskPomodoroResizableForm : Form
     }
     public void SetClickThrough(bool enabled)
     {
+        if (clickThroughEnabled == enabled && this.IsHandleCreated)
+        {
+            return;
+        }
         if (!this.IsHandleCreated)
         {
             clickThroughEnabled = enabled;
@@ -130,17 +164,32 @@ $ErrorActionPreference = "Stop"
 
 $script:RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 $script:ModulesDir = Join-Path $script:RootDir "modules"
-foreach ($moduleName in @("AppState.ps1", "UiText.ps1", "Storage.ps1", "SettingsStore.ps1", "TaskModel.ps1", "TaskStore.ps1", "TaskQueries.ps1", "TaskOrdering.ps1", "TaskCommands.ps1", "TaskDetails.ps1", "TaskArchive.ps1", "TaskFormat.ps1", "PomodoroRecords.ps1", "PomodoroAudio.ps1", "PomodoroEffects.ps1", "PomodoroSession.ps1", "PomodoroEngine.ps1", "AppRelaunch.ps1", "AppMaintenance.ps1", "DesktopShortcut.ps1", "UiTimer.ps1", "BottomChrome.ps1", "WindowSize.ps1", "WindowDrag.ps1", "HelpSurface.ps1", "WatermarkGhostSurface.ps1", "WatermarkMode.ps1", "Views.Core.ps1", "Views.Task.Controls.ps1", "Views.Task.Hover.ps1", "Views.Task.ListDrawing.ps1", "Views.Task.DetailsDialog.ps1", "Views.Task.Edit.ps1", "Views.Task.ps1", "Views.Task.Menu.ps1", "Views.Timer.ps1", "Views.More.ps1", "Views.Settings.Controls.ps1", "Views.Timer.SettingsDialog.ps1", "Views.Settings.ps1", "SelfTest.ps1")) {
+. (Join-Path $script:ModulesDir "ModuleLoadOrder.ps1")
+foreach ($moduleName in (Get-TaskPomodoroModuleLoadOrder -IncludeSelfTest:$SelfTest)) {
     . (Join-Path $script:ModulesDir $moduleName)
 }
 Initialize-AppState $script:RootDir
+$script:SelfTestStateRoot = ""
+if ($SelfTest -and [string]$env:TASK_POMODORO_SELFTEST_IN_PLACE -ne "1") {
+    $script:SelfTestStateRoot = Join-Path (Join-Path ([System.IO.Path]::GetTempPath()) "TaskPomodoroSelfTest") ([guid]::NewGuid().ToString("N"))
+    $script:App.Paths.DataDir = Join-Path $script:SelfTestStateRoot "data"
+    $script:App.Paths.ConfigDir = Join-Path $script:SelfTestStateRoot "config"
+    $script:App.Paths.BackupDir = Join-Path $script:App.Paths.DataDir "backups"
+    $script:App.Paths.TasksFile = Join-Path $script:App.Paths.DataDir "tasks.json"
+    $script:App.Paths.PomodorosFile = Join-Path $script:App.Paths.DataDir "pomodoros.jsonl"
+    $script:App.Paths.InboxFile = Join-Path $script:App.Paths.DataDir "inbox.json"
+    $script:App.Paths.TimerStateFile = Join-Path $script:App.Paths.DataDir "timer-state.json"
+    $script:App.Paths.BehaviorEventsFile = Join-Path $script:App.Paths.DataDir "behavior-events.jsonl"
+    $script:App.Paths.SettingsFile = Join-Path $script:App.Paths.ConfigDir "settings.json"
+    Sync-AppLegacyPathAliases
+}
 
 function Invoke-DataCheck {
     try {
         Load-Tasks
         Save-Tasks
         Load-Settings
-        Save-Settings
+        Save-SettingsPreservingWindowState
         [System.Windows.Forms.MessageBox]::Show((T "TasksFileReadable"), (T "DataCheckDone")) | Out-Null
         Set-Status (T "DataOk")
     }
@@ -154,6 +203,8 @@ function Initialize-State {
     Initialize-Storage
     Load-Settings
     Load-Tasks
+    Load-Inbox
+    Initialize-BehaviorEvents
     if (-not (Test-Path -LiteralPath $script:PomodorosFile)) {
         Invoke-WithNamedMutex (Get-AppScopedMutexName "data") {
             if (-not (Test-Path -LiteralPath $script:PomodorosFile)) {
@@ -176,7 +227,17 @@ function Initialize-State {
     $script:PomodoroSessionMaxRounds = 0
     $script:PomodoroSessionStartedCount = 0
     $script:PomodoroSessionAutoStartNext = $null
+    $script:TimerCompletionInProgress = $false
+    $script:PomodoroPausedAtDate = $null
+    $script:PomodoroPauseThresholdsTriggered = @()
     $script:BackgroundPlayer = $null
+    $script:BackgroundMediaPlayer = $null
+    $script:PreviewSoundPlayer = $null
+    $script:PreviewMediaPlayer = $null
+    $script:BackgroundAudioPhase = ""
+    $script:BackgroundAudioVolume = 100
+    Restore-PomodoroRuntimeState | Out-Null
+    Update-PomodoroRuntimeAudioAfterSettingsChange
     $script:StatusMessage = ""
     $script:WatermarkMode = $false
     $script:WatermarkPreviousOpacity = $null
@@ -188,12 +249,32 @@ function Initialize-State {
     $script:WatermarkToggleDragActive = $false
     $script:WatermarkToggleDragMoved = $false
     $script:WatermarkToggleDragStart = $null
+    $script:WatermarkPreserveLayout = $false
+    $script:WatermarkPreviousActiveView = $null
+    $script:WatermarkPreviousWindowWidth = $null
+    $script:WatermarkPreviousWindowHeight = $null
+    $script:WatermarkTranslationMode = $false
+    $script:WatermarkTranslationTimer = $null
+    $script:WatermarkTranslationHideTimer = $null
+    $script:WatermarkTranslationMiniForm = $null
+    $script:WatermarkTranslationDetailForm = $null
+    $script:WatermarkTranslationMiniLabel = $null
+    $script:WatermarkTranslationDetailLabel = $null
+    $script:WatermarkTranslationDictionary = $null
+    $script:WatermarkTranslationCache = @{}
+    $script:WatermarkTranslationTypesReady = $false
+    $script:WatermarkTranslationClipboardTimer = $null
+    $script:WatermarkTranslationLastClipboardSequence = 0
+    $script:WatermarkTranslationLastSource = ""
+    $script:WatermarkTranslationSettingsDialog = $null
     $script:ColorReminderFlashTimer = $null
     $script:ColorReminderFlashRestore = $null
     $script:HelpButton = $null
     $script:TaskPreviewToolTip = $null
     $script:TaskPreviewPanel = $null
     $script:TaskListBox = $null
+    $script:BehaviorCurrentSessionId = ""
+    $script:BehaviorCurrentSessionTaskId = ""
     Invoke-DailyArchiveIfDue | Out-Null
 }
 
@@ -225,9 +306,10 @@ function Initialize-Ui {
     $script:Form.TopMost = [bool]$script:Settings.TopMost
     $script:Form.Opacity = [double]$script:Settings.Opacity
     $script:Form.StartPosition = [System.Windows.Forms.FormStartPosition]::CenterScreen
-    if ($null -ne $script:Settings.WindowX -and $null -ne $script:Settings.WindowY) {
+    $safeLocation = Get-SafeWindowLocation ([int]$script:Form.Width) ([int]$script:Form.Height) $script:Settings.WindowX $script:Settings.WindowY
+    if ($null -ne $safeLocation) {
         $script:Form.StartPosition = [System.Windows.Forms.FormStartPosition]::Manual
-        $script:Form.Location = New-Object System.Drawing.Point([int]$script:Settings.WindowX, [int]$script:Settings.WindowY)
+        $script:Form.Location = $safeLocation
     }
     $script:Form.Font = New-Object System.Drawing.Font("Microsoft YaHei UI", 10.5)
     $script:Form.MaximizeBox = $false
@@ -248,6 +330,7 @@ function Initialize-Ui {
     Add-WindowDrag $main
     Add-BottomChromeTracking $script:Form
     Add-BottomChromeTracking $main
+    $script:Form.Add_Shown({ Show-DailyContinuationPromptIfDue })
     $script:Form.Add_Deactivate({ Clear-TaskSelection })
     $script:Form.Add_MouseDown({ param($sender, $eventArgs) if ($eventArgs.Button -eq [System.Windows.Forms.MouseButtons]::Left) { Clear-TaskSelection } })
 
@@ -293,6 +376,11 @@ function Initialize-Ui {
     $script:NavButtons["timer"] = $timerButton
     $navButtonsPanel.Controls.Add($timerButton)
 
+
+    $inboxButton = New-Button (T "Inbox") 46
+    $inboxButton.Add_Click({ Set-ActiveView "inbox" })
+    $script:NavButtons["inbox"] = $inboxButton
+    $navButtonsPanel.Controls.Add($inboxButton)
     $moreButton = New-Button (T "More") 52
     $moreButton.Add_Click({ Set-ActiveView "more" })
     $script:NavButtons["more"] = $moreButton
@@ -348,7 +436,9 @@ function Initialize-Ui {
     $script:Form.Add_FormClosing({
         $script:Form.SetClickThrough($false)
         Stop-BackgroundAudio
-        Save-Settings
+        Save-PomodoroRuntimeState
+        Save-AppLifecycleSettings
+        Stop-AppInstanceLock
     })
 
     Update-DateLabel
@@ -367,7 +457,14 @@ if (-not $SelfTest -and -not (Start-AppInstanceLock)) {
 try {
     Initialize-State
     if ($SelfTest) {
-        Invoke-SelfTest
+        try { Invoke-SelfTest }
+        finally {
+            if (-not [string]::IsNullOrWhiteSpace([string]$script:SelfTestStateRoot)) {
+                $selfTestRoot = [System.IO.Path]::GetFullPath([string]$script:SelfTestStateRoot)
+                $allowedRoot = [System.IO.Path]::GetFullPath((Join-Path ([System.IO.Path]::GetTempPath()) "TaskPomodoroSelfTest")) + [System.IO.Path]::DirectorySeparatorChar
+                if ($selfTestRoot.StartsWith($allowedRoot, [System.StringComparison]::OrdinalIgnoreCase)) { Remove-Item -LiteralPath $selfTestRoot -Recurse -Force -ErrorAction SilentlyContinue }
+            }
+        }
         exit 0
     }
     Start-TaskPomodoroApp

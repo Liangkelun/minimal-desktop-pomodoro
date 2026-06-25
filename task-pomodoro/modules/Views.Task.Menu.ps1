@@ -1,69 +1,4 @@
-﻿# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
-
-function Select-ListItemAtPoint([System.Windows.Forms.ListBox]$List, [int]$X, [int]$Y) {
-    $index = $List.IndexFromPoint($X, $Y)
-    $point = New-Object System.Drawing.Point -ArgumentList @($X, $Y)
-    if ($index -lt 0 -or $index -ge $List.Items.Count -or -not ($List.GetItemRectangle($index).Contains($point))) {
-        $List.ClearSelected()
-        Hide-TaskTitlePreview
-        return $null
-    }
-    $item = $List.Items[$index]
-    if ($null -eq $item -or [string]::IsNullOrWhiteSpace([string]$item.Id)) {
-        $List.ClearSelected()
-        Hide-TaskTitlePreview
-        return $null
-    }
-    $List.SelectedIndex = $index
-    return $item
-}
-
-function Clear-TaskSelection {
-    if ($null -ne $script:TaskListBox -and -not $script:TaskListBox.IsDisposed) {
-        $script:TaskListBox.ClearSelected()
-    }
-    Hide-TaskTitlePreview
-}
-
-function Add-MenuEntry([object]$Menu, [System.Windows.Forms.ToolStripItem]$Item) {
-    if ($Menu -is [System.Windows.Forms.ToolStripMenuItem]) {
-        $Menu.DropDownItems.Add($Item) | Out-Null
-    }
-    else {
-        $Menu.Items.Add($Item) | Out-Null
-    }
-}
-
-function Add-MenuItem([object]$Menu, [string]$Text, [string]$TaskId, [scriptblock]$Action) {
-    $item = New-Object System.Windows.Forms.ToolStripMenuItem
-    $item.Text = $Text
-    $item.Tag = $TaskId
-    $item.Add_Click($Action)
-    Add-MenuEntry $Menu $item
-}
-
-function Add-SubMenu([object]$Menu, [string]$Text) {
-    $item = New-Object System.Windows.Forms.ToolStripMenuItem
-    $item.Text = $Text
-    Add-MenuEntry $Menu $item
-    return $item
-}
-
-function Add-OpenTaskLinkMenuItem([object]$Menu, [string]$TaskId) {
-    $taskIdForClick = [string]$TaskId
-    $item = New-Object System.Windows.Forms.ToolStripMenuItem
-    $item.Text = T "OpenTaskLink"
-    $item.Tag = $taskIdForClick
-    $item.Add_Click({ param($sender, $eventArgs) Open-TaskLink ([string]$sender.Tag) })
-    Add-MenuEntry $Menu $item
-}
-
-function Invoke-DeleteTaskMenuAction([string]$TaskId) {
-    $confirm = [System.Windows.Forms.MessageBox]::Show((T "DeleteTaskConfirm"), (T "DeleteTask"), [System.Windows.Forms.MessageBoxButtons]::OKCancel, [System.Windows.Forms.MessageBoxIcon]::Warning)
-    if ($confirm -eq [System.Windows.Forms.DialogResult]::OK) {
-        Invoke-TaskOperationResult (Delete-Task $TaskId)
-    }
-}
+# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
 
 function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
     $selected = $List.SelectedItem
@@ -77,33 +12,47 @@ function Show-TaskMenu([System.Windows.Forms.ListBox]$List, [string]$Mode) {
     $menu = New-Object System.Windows.Forms.ContextMenuStrip
     $task = Get-TaskById ([string]$selected.Id)
     $completeText = T "CompleteTaskMenu"
-    $completeAction = { param($sender, $eventArgs) Invoke-TaskOperationResult (Complete-Task ([string]$sender.Tag)) }
+    $completeAction = { param($sender, $eventArgs) Invoke-TaskMenuCompleteAction ([string]$sender.Tag) }
     if (Test-TaskIsCompleted $task) {
         $completeText = T "UncompleteTaskMenu"
-        $completeAction = { param($sender, $eventArgs) Invoke-TaskOperationResult (Uncomplete-Task ([string]$sender.Tag)) }
+        $completeAction = { param($sender, $eventArgs) Invoke-TaskMenuUncompleteAction ([string]$sender.Tag) }
     }
     if ($Mode -eq "today") {
-        Add-MenuItem $menu (T "PomodoroMenu") $selected.Id { param($sender, $eventArgs) Invoke-AppActionResult (Start-PomodoroFromUi ([string]$sender.Tag)) }
+        $starterActiveForSelected = Test-TaskStarterRunningForTask ([string]$selected.Id)
+        if ($starterActiveForSelected) {
+            if (Test-PomodoroRuntimePaused) {
+                Add-MenuItem $menu (T "Continue") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuContinueTimerAction ([string]$sender.Tag) }
+            }
+            else {
+                Add-MenuItem $menu (T "Pause") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuPauseTimerAction ([string]$sender.Tag) }
+            }
+            Add-MenuItem $menu (T "Stop") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuStopTimerAction ([string]$sender.Tag) }
+            Add-MenuItem $menu (T "Settings") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuStarterSettingsAction ([string]$sender.Tag) }
+            Add-MenuEntry $menu (New-Object System.Windows.Forms.ToolStripSeparator)
+        }
+        Add-MenuItem $menu (T "PomodoroMenu") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuStartPomodoroAction ([string]$sender.Tag) }
+        if (-not $starterActiveForSelected) {
+            Add-MenuItem $menu (Get-TaskStarterLabel) $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuStartStarterAction ([string]$sender.Tag) }
+        }
         Add-MenuItem $menu $completeText $selected.Id $completeAction
-        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
+        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuEditAction ([string]$sender.Tag) }
         $more = Add-SubMenu $menu "..."
         Add-OpenTaskLinkMenuItem $more $selected.Id
-        Add-MenuItem $more (T "RemoveFromToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Unschedule-TaskToday ([string]$sender.Tag)) }
-        Add-MenuItem $more (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (End-Task ([string]$sender.Tag)) }
-        Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Pin-TaskToTop "today" ([string]$sender.Tag)) }
-        Add-MenuItem $more (T "DeleteTask") $selected.Id { param($sender, $eventArgs) Invoke-DeleteTaskMenuAction ([string]$sender.Tag) }
+        Add-MenuItem $more (T "RemoveFromToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuUnscheduleTodayAction ([string]$sender.Tag) }
+        Add-MenuItem $more (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuEndAction ([string]$sender.Tag) }
+        Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuPinTodayAction ([string]$sender.Tag) }
+        Add-MenuItem $more (T "DeleteTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuDeleteAction ([string]$sender.Tag) }
     }
     else {
-        Add-MenuItem $menu (T "ScheduleToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Schedule-TaskToday ([string]$sender.Tag)) }
+        Add-MenuItem $menu (T "ScheduleToday") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuScheduleTodayAction ([string]$sender.Tag) }
         Add-MenuItem $menu $completeText $selected.Id $completeAction
-        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Edit-TaskDetails ([string]$sender.Tag) }
-        Add-MenuItem $menu (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (End-Task ([string]$sender.Tag)) }
+        Add-MenuItem $menu (T "EditTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuEditAction ([string]$sender.Tag) }
+        Add-MenuItem $menu (T "EndTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuEndAction ([string]$sender.Tag) }
         $more = Add-SubMenu $menu "..."
         Add-OpenTaskLinkMenuItem $more $selected.Id
-        Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskOperationResult (Pin-TaskToTop "tasks" ([string]$sender.Tag)) }
-        Add-MenuItem $more (T "DeleteTask") $selected.Id { param($sender, $eventArgs) Invoke-DeleteTaskMenuAction ([string]$sender.Tag) }
+        Add-MenuItem $more (T "PinToTop") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuPinTasksAction ([string]$sender.Tag) }
+        Add-MenuItem $more (T "DeleteTask") $selected.Id { param($sender, $eventArgs) Invoke-TaskMenuDeleteAction ([string]$sender.Tag) }
     }
     $point = $List.PointToClient([System.Windows.Forms.Cursor]::Position)
     $menu.Show($List, $point)
 }
-

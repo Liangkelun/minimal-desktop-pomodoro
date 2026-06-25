@@ -171,11 +171,24 @@ function New-ChineseQuickStart([string]$PackageRoot, [string]$FileName) {
     $lines = @(
         (ConvertFrom-Base64Text "5p6B566A5qGM6Z2i55Wq6IyE6ZKfIOS9v+eUqOivtOaYjg=="),
         "",
+        (ConvertFrom-Base64Text "5LiA44CB5ZCv5Yqo"),
         (ConvertFrom-Base64Text "MS4g6K+35YWI6Kej5Y6L5pW05Liq5paH5Lu25aS544CC"),
         (ConvertFrom-Base64Text "Mi4g5Y+M5Ye74oCc5Y+M5Ye75ZCv5YqoIOaegeeugOahjOmdoueVquiMhOmSny5leGXigJ3lkK/liqjnqIvluo/jgII="),
-        (ConvertFrom-Base64Text "5aaC5p6c57O757uf5oum5oiqIGV4Ze+8jOS5n+WPr+S7peWPjOWHu+KAnOWPjOWHu+WQr+WKqCDmnoHnroDmoYzpnaLnlarojITpkp8udmJz4oCd44CC"),
+        (ConvertFrom-Base64Text "ICAg5aaC5p6c57O757uf5oum5oiqIGV4Ze+8jOS5n+WPr+S7peWPjOWHu+KAnOWPjOWHu+WQr+WKqCDmnoHnroDmoYzpnaLnlarojITpkp8udmJz4oCd44CC"),
         (ConvertFrom-Base64Text "My4g6aaW5qyh5ZCv5Yqo5pe277yM5Y+v5Lul6YCJ5oup5re75Yqg5qGM6Z2i5b+r5o235pa55byP44CC"),
-        (ConvertFrom-Base64Text "NC4g6K+35LiN6KaB5Y+q56e75Yqo5ZCv5Yqo5paH5Lu277yM5L+d5oyB5pW05Liq5paH5Lu25aS55a6M5pW044CC")
+        (ConvertFrom-Base64Text "NC4g6K+35LiN6KaB5Y+q56e75Yqo5ZCv5Yqo5paH5Lu277yM5L+d5oyB5pW05Liq5paH5Lu25aS55a6M5pW044CC"),
+        "",
+        (ConvertFrom-Base64Text "5LqM44CB5b+r6YCf5LiK5omL"),
+        (ConvertFrom-Base64Text "MS4g6Z2g6L+R56qX5Y+j5bqV6YOo77yM6L6T5YWl5Lu75Yqh77yM5oyJIEVudGVyIOaWsOWinuOAgg=="),
+        (ConvertFrom-Base64Text "Mi4g5Zyo5Lu75Yqh6aG15Y+M5Ye75Lu75Yqh77yM5a6J5o6S5Yiw5LuK5pel44CC"),
+        (ConvertFrom-Base64Text "My4g5Zyo5LuK5pel6aG15Y+M5Ye75Lu75Yqh77yM5ZCv5Yqo55Wq6IyE6ZKf44CC"),
+        "",
+        (ConvertFrom-Base64Text "5LiJ44CB56qX5Y+j5LiO6Jma5YyW"),
+        (ConvertFrom-Base64Text "MS4g5ouW5Yqo56ys5LiA6KGM5LiK5pa55Yy65Z+f56e75Yqo56qX5Y+j77yM6Z2g6L+R5bqV6YOo5pi+56S66L6T5YWl5qGG5ZKM5a+86Iiq44CC"),
+        (ConvertFrom-Base64Text "Mi4g54K55Ye7IH4g6L+b5YWl6Jma5YyW572u6aG25o+Q6YaS77yM54K55Ye75Y+z5LiK6KeSIOKWsyDpgIDlh7romZrljJbjgII="),
+        "",
+        (ConvertFrom-Base64Text "5Zub44CB5biu5Yqp5YWl5Y+j"),
+        (ConvertFrom-Base64Text "5bem6ZSu5oiW5Y+z6ZSu54K55Ye7ID8g5omT5byA5biu5Yqp6I+c5Y2V77yb5Y+z6ZSuID8g5Y+v5p+l55yL5Zu+56S644CB6KeE5YiZ44CB5b+r5o236ZSu44CB5pu05paw44CB5pSv5oyB5ZKM5rK755CG5L+h5oGv44CC")
     )
     Set-Content -LiteralPath (Join-Path $PackageRoot $FileName) -Value $lines -Encoding UTF8
 }
@@ -187,8 +200,9 @@ function Remove-SafeTempDirectory([string]$Path) {
 
     $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) "TaskPomodoroRelease"
     $resolvedTempRoot = (Resolve-Path -LiteralPath $tempRoot).Path.TrimEnd("\")
+    $resolvedTempRootWithSeparator = $resolvedTempRoot + "\"
     $resolvedPath = (Resolve-Path -LiteralPath $Path).Path
-    if (-not $resolvedPath.StartsWith($resolvedTempRoot, [System.StringComparison]::OrdinalIgnoreCase)) {
+    if (-not $resolvedPath.StartsWith($resolvedTempRootWithSeparator, [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Refusing to remove path outside release temp root: $resolvedPath"
     }
 
@@ -243,8 +257,17 @@ function Test-ZipContents([string]$ZipPath, [string]$PackageName, [string]$RootL
             "$PackageName/LICENSE",
             "$PackageName/task-pomodoro/TaskPomodoro.ps1",
             "$PackageName/task-pomodoro/VERSION",
+            "$PackageName/task-pomodoro/modules/ModuleLoadOrder.ps1",
             "$PackageName/task-pomodoro/modules/TaskStore.ps1",
-            "$PackageName/task-pomodoro/scripts/Invoke-AutomatedChecks.ps1"
+            "$PackageName/task-pomodoro/scripts/Invoke-AutomatedChecks.ps1",
+            "$PackageName/task-pomodoro/scripts/AutomatedChecks.Core.ps1",
+            "$PackageName/task-pomodoro/scripts/AutomatedChecks.Project.ps1",
+            "$PackageName/task-pomodoro/scripts/AutomatedChecks.Boundaries.ps1",
+            "$PackageName/task-pomodoro/scripts/Measure-RuntimeFootprint.ps1",
+            "$PackageName/task-pomodoro/assets/dict/watermark-translation-core.tsv",
+            "$PackageName/task-pomodoro/assets/dict/watermark-translation-core.tsv.idx",
+            "$PackageName/task-pomodoro/assets/dict/NOTICE.md",
+            "$PackageName/task-pomodoro/assets/help/translation-api-setup.html"
         )
         if (-not [string]::IsNullOrWhiteSpace($RootLauncherName)) {
             $required += "$PackageName/$RootLauncherName"
@@ -363,17 +386,29 @@ try {
     Copy-RequiredFile (Join-Path $appRoot "VERSION") (Join-Path $appPackageRoot "VERSION")
     Copy-RequiredDirectory (Join-Path $appRoot "modules") (Join-Path $appPackageRoot "modules")
     Copy-RequiredDirectory (Join-Path $appRoot "assets\audio") (Join-Path $appPackageRoot "assets\audio")
+    Copy-RequiredDirectory (Join-Path $appRoot "assets\dict") (Join-Path $appPackageRoot "assets\dict")
+    Copy-RequiredDirectory (Join-Path $appRoot "assets\help") (Join-Path $appPackageRoot "assets\help")
     Copy-MatchingFiles (Join-Path $appRoot "assets\icon") (Join-Path $appPackageRoot "assets\icon") @("*.ico", "*.png") -RequireAny | Out-Null
     Copy-RequiredDirectory (Join-Path $appRoot "assets\sponsor") (Join-Path $appPackageRoot "assets\sponsor")
 
     $packageScriptsDir = Join-Path $appPackageRoot "scripts"
+    $packageScriptNames = New-Object System.Collections.Generic.List[string]
     foreach ($scriptName in @(
         "Invoke-AutomatedChecks.ps1",
+        "Measure-RuntimeFootprint.ps1",
         "New-ReleasePackage.ps1",
         "InstallDesktopShortcutIcon.ps1",
         "InspectDesktopShortcut.ps1",
         "RefreshDesktopIcons.ps1"
     )) {
+        $packageScriptNames.Add($scriptName) | Out-Null
+    }
+    foreach ($scriptFile in @(Get-ChildItem -LiteralPath $scriptDir -Filter "AutomatedChecks.*.ps1" -File | Sort-Object Name)) {
+        if (-not $packageScriptNames.Contains($scriptFile.Name)) {
+            $packageScriptNames.Add($scriptFile.Name) | Out-Null
+        }
+    }
+    foreach ($scriptName in $packageScriptNames) {
         Copy-RequiredFile (Join-Path $scriptDir $scriptName) (Join-Path $packageScriptsDir $scriptName)
     }
 

@@ -17,7 +17,10 @@ function Initialize-AppState([string]$RootDir) {
             ConfigDir = $configDir
             BackupDir = Join-Path $dataDir "backups"
             TasksFile = Join-Path $dataDir "tasks.json"
+            InboxFile = Join-Path $dataDir "inbox.json"
+            TimerStateFile = Join-Path $dataDir "timer-state.json"
             PomodorosFile = Join-Path $dataDir "pomodoros.jsonl"
+            BehaviorEventsFile = Join-Path $dataDir "behavior-events.jsonl"
             SettingsFile = Join-Path $configDir "settings.json"
         }
         Ui = [ordered]@{}
@@ -41,7 +44,10 @@ function Sync-AppLegacyPathAliases {
     $script:ConfigDir = [string]$paths.ConfigDir
     $script:BackupDir = [string]$paths.BackupDir
     $script:TasksFile = [string]$paths.TasksFile
+    $script:InboxFile = [string]$paths.InboxFile
+    $script:TimerStateFile = [string]$paths.TimerStateFile
     $script:PomodorosFile = [string]$paths.PomodorosFile
+    $script:BehaviorEventsFile = [string]$paths.BehaviorEventsFile
     $script:SettingsFile = [string]$paths.SettingsFile
 }
 

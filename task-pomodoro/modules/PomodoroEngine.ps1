@@ -1,195 +1,115 @@
-﻿# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
-
-function Format-Time([int]$Seconds) {
-    if ($Seconds -lt 0) {
-        $Seconds = 0
-    }
-    $minutes = [Math]::Floor($Seconds / 60)
-    $remainingSeconds = $Seconds % 60
-    return "{0:00}:{1:00}" -f $minutes, $remainingSeconds
-}
-function New-PomodoroOperationResult(
-    [bool]$Ok,
-    [string]$StatusKey,
-    [string]$View,
-    [bool]$ShouldUpdateTimer,
-    [object]$Data
-) {
-    return [pscustomobject]@{
-        Ok = $Ok
-        StatusKey = $StatusKey
-        MessageKey = ""
-        View = $View
-        ShouldRender = $false
-        ShouldUpdateTimer = $ShouldUpdateTimer
-        Data = $Data
-    }
-}
-function Get-TaskRemainingPomodoros([object]$Task) {
-    if ($null -eq $Task -or $null -eq $Task.estimatedPomodoroCount) { return 0 }
-    return [Math]::Max(0, ([int]$Task.estimatedPomodoroCount - [int]$Task.pomodoroCount))
-}
-function Add-TaskEstimatedPomodoros([object]$Task, [int]$Count) {
-    if ($null -eq $Task -or $Count -le 0) { return $false }
-    $baseline = [Math]::Max([int]$Task.estimatedPomodoroCount, [int]$Task.pomodoroCount)
-    $Task.estimatedPomodoroCount = $baseline + $Count
-    Save-Tasks
-    return $true
-}
+# This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
 
 function Start-Pomodoro([string]$TaskId) {
-    if ($script:TimerState -ne "idle") {
+    $runtime = Get-PomodoroRuntimeEngineSnapshot
+    if (-not [bool]$runtime.IsIdle) {
         $result = New-PomodoroOperationResult $false "" "" $false $null
         $result.MessageKey = "TimerAlreadyRunning"
         return $result
     }
 
-    if ([int]$script:PomodoroSessionStartedCount -gt 0 -and [string]$TaskId -ne [string]$script:CurrentPomodoroTaskId) {
+    if (Test-PomodoroSessionStartedForDifferentTask $TaskId ([string]$runtime.TaskId)) {
         Reset-PomodoroSession
     }
     Ensure-PomodoroSession $TaskId
-    $script:CurrentPomodoroTaskId = $TaskId
-    $task = $null
-    if (-not [string]::IsNullOrWhiteSpace($TaskId)) {
-        $task = Get-TaskById $TaskId
-    }
-    if ($null -ne $task) {
-        $script:CurrentPomodoroTaskTitle = $task.title
-    }
-    else {
-        $script:CurrentPomodoroTaskTitle = T "UnboundFocus"
-        $script:CurrentPomodoroTaskId = $null
-    }
+    $taskBinding = Get-PomodoroStartTaskBinding $TaskId
+    if ([bool]$taskBinding.HasTask) { Set-PomodoroRuntimeCurrentTask ([string]$taskBinding.TaskId) ([string]$taskBinding.TaskTitle) }
+    else { Clear-PomodoroRuntimeCurrentTask }
 
-    $script:PomodoroSessionStartedCount = [int]$script:PomodoroSessionStartedCount + 1
-    $script:TimerPhase = "work"
-    if ([bool]$script:Settings.StartSoundReminder) {
-        Play-StartSound
+    Add-PomodoroSessionStartedCount | Out-Null
+    Start-PomodoroRuntimePhase "work" (Get-PomodoroWorkMinutes)
+
+    $startedTaskId = [string](Get-PomodoroRuntimeEngineSnapshot).TaskId
+    $sessionId = Start-BehaviorSessionForTask $startedTaskId
+    $events = @(New-PomodoroWorkStartedEvents)
+    if (-not [string]::IsNullOrWhiteSpace($startedTaskId)) {
+        $events += (New-BehaviorResultEvent "task_started" $startedTaskId $sessionId "user" @{})
+        $events += (New-BehaviorResultEvent "pomodoro_started" $startedTaskId $sessionId "user" @{ PlannedMinutes = (Get-PomodoroWorkMinutes) })
     }
-    $script:PomodoroStartedAt = Get-IsoNow
-    $script:PomodoroStartedAtDate = Get-Date
-    $script:CurrentPhasePlannedMinutes = Get-PomodoroWorkMinutes
-    $script:SecondsRemaining = [int]$script:CurrentPhasePlannedMinutes * 60
-    $script:PomodoroEndAt = (Get-Date).AddSeconds($script:SecondsRemaining)
-    $script:TimerState = "running"
-    Start-BackgroundAudio "work"
-    return New-PomodoroOperationResult $true "Focusing" "timer" $true $script:CurrentPomodoroTaskId
+    return New-PomodoroOperationResult $true "Focusing" "timer" $true $startedTaskId $events
 }
 
 function Pause-Pomodoro {
-    if ($script:TimerState -ne "running") {
+    if (-not (Test-PomodoroRuntimeRunning)) {
         return New-PomodoroOperationResult $false "" "" $false $null
     }
-    $script:SecondsRemaining = [Math]::Max(0, [int][Math]::Ceiling(($script:PomodoroEndAt - (Get-Date)).TotalSeconds))
-    $script:TimerState = "paused"
-    Stop-BackgroundAudio
-    return New-PomodoroOperationResult $true "" "" $true $null
+    Pause-PomodoroRuntimePhase
+    $runtime = Get-PomodoroRuntimeTimerViewSnapshot
+    return New-PomodoroOperationResult $true "" "" $true $null (New-PomodoroPausedEvents $runtime)
 }
 
 function Continue-Pomodoro {
-    if ($script:TimerState -ne "paused") {
+    $runtime = Get-PomodoroRuntimeTimerViewSnapshot
+    if (-not [bool]$runtime.IsPaused) {
         return New-PomodoroOperationResult $false "" "" $false $null
     }
-    $script:PomodoroEndAt = (Get-Date).AddSeconds($script:SecondsRemaining)
-    $script:TimerState = "running"
-    Start-BackgroundAudio $script:TimerPhase
-    return New-PomodoroOperationResult $true "" "" $true $null
+    Resume-PomodoroRuntimePhase
+    return New-PomodoroOperationResult $true "" "" $true $null (New-PomodoroResumedEvents $runtime)
+}
+
+function New-PomodoroPauseThresholdResult([object]$Tick) {
+    if ($null -eq $Tick -or [string]$Tick.Kind -ne "pause-threshold") { return $null }
+    $statusKey = if ([int]$Tick.ThresholdMinutes -ge 10) { "PomodoroPausedOverTen" } else { "PomodoroPausedOverFive" }
+    return New-PomodoroOperationResult $true $statusKey "" $false $null (New-PomodoroPauseThresholdEvents $Tick)
 }
 
 function Stop-Pomodoro {
-    if ($script:TimerState -eq "idle") {
+    $runtime = Get-PomodoroRuntimeEngineSnapshot
+    if ([bool]$runtime.IsIdle) {
         Reset-PomodoroSession
-        $script:SecondsRemaining = [int]$script:Settings.WorkMinutes * 60
-        $script:TimerPhase = "work"
-        $script:CurrentPomodoroTaskId = $null
-        $script:CurrentPomodoroTaskTitle = T "UnboundFocus"
-        Stop-BackgroundAudio
-        return New-PomodoroOperationResult $true "" "" $true $null
+        Set-PomodoroRuntimeIdleWorkState $true
+        return New-PomodoroOperationResult $true "" "" $true $null (New-PomodoroIdleStoppedEvents)
+    }
+
+    if ([bool]$runtime.IsStarter) {
+        return Stop-TaskStarter
     }
 
     $ended = Get-IsoNow
-    $elapsed = 0
-    if ($null -ne $script:PomodoroStartedAtDate) {
-        $elapsed = [int][Math]::Max(0, ((Get-Date) - $script:PomodoroStartedAtDate).TotalSeconds)
-    }
-    if ($script:TimerPhase -eq "break") {
-        Append-PomodoroRecord $null $script:PomodoroStartedAt $ended (Get-PomodoroBreakMinutes) $elapsed "skipped_break"
-    }
-    else {
-        Append-PomodoroRecord $script:CurrentPomodoroTaskId $script:PomodoroStartedAt $ended (Get-PomodoroWorkMinutes) $elapsed "interrupted"
-    }
-    Stop-BackgroundAudio
+    $events = New-PomodoroInterruptedEvents $runtime $ended
     Reset-PomodoroSession
-    $script:TimerState = "idle"
-    $script:TimerPhase = "work"
-    $script:SecondsRemaining = [int]$script:Settings.WorkMinutes * 60
-    $script:CurrentPomodoroTaskId = $null
-    $script:CurrentPomodoroTaskTitle = T "UnboundFocus"
-    return New-PomodoroOperationResult $true "PomodoroInterrupted" "" $true $null
+    Set-PomodoroRuntimeIdleWorkState $true
+    return New-PomodoroOperationResult $true "PomodoroInterrupted" "" $true $null $events
 }
 
 function Complete-Pomodoro {
-    if ($script:TimerPhase -eq "break") {
+    $runtime = Get-PomodoroRuntimeEngineSnapshot
+    if ([bool]$runtime.IsStarter) {
+        return Complete-TaskStarter
+    }
+    if ([bool]$runtime.IsBreak) {
         return Complete-Break
     }
 
     $ended = Get-IsoNow
-    $plannedSeconds = (Get-PomodoroWorkMinutes) * 60
-    Append-PomodoroRecord $script:CurrentPomodoroTaskId $script:PomodoroStartedAt $ended (Get-PomodoroWorkMinutes) $plannedSeconds "completed"
-
-    if (-not [string]::IsNullOrWhiteSpace($script:CurrentPomodoroTaskId)) {
-        $task = Get-TaskById $script:CurrentPomodoroTaskId
-        if ($null -ne $task) {
-            $task.pomodoroCount = [int]$task.pomodoroCount + 1
-            Save-Tasks
-        }
-    }
-
-    Stop-BackgroundAudio
-    Trigger-Reminder
-    return Start-BreakTimer
+    $events = New-PomodoroWorkCompletedEvents $runtime $ended
+    $breakResult = Start-BreakTimer
+    return Add-PomodoroResultEvents $breakResult $events
 }
 
 function Start-BreakTimer {
-    $script:TimerPhase = "break"
-    $script:PomodoroStartedAt = Get-IsoNow
-    $script:PomodoroStartedAtDate = Get-Date
-    $script:CurrentPhasePlannedMinutes = Get-PomodoroBreakMinutes
-    $script:SecondsRemaining = [int]$script:CurrentPhasePlannedMinutes * 60
-    $script:PomodoroEndAt = (Get-Date).AddSeconds($script:SecondsRemaining)
-    $script:TimerState = "running"
-    Start-BackgroundAudio "break"
-    return New-PomodoroOperationResult $true "BreakFocusing" "" $true $null
+    Start-PomodoroRuntimePhase "break" (Get-PomodoroBreakMinutes)
+    return New-PomodoroOperationResult $true "BreakFocusing" "" $true $null (New-PomodoroBreakStartedEvents)
 }
 
 function Complete-Break {
+    $runtime = Get-PomodoroRuntimeEngineSnapshot
     $ended = Get-IsoNow
-    $plannedSeconds = (Get-PomodoroBreakMinutes) * 60
-    Append-PomodoroRecord $null $script:PomodoroStartedAt $ended (Get-PomodoroBreakMinutes) $plannedSeconds "break_completed"
+    $events = New-PomodoroBreakCompletedEvents $runtime $ended
 
-    $hasNextPomodoro = ([int]$script:PomodoroSessionStartedCount -lt [int]$script:PomodoroSessionMaxRounds)
-    $nextTaskId = $null
-    if (-not [string]::IsNullOrWhiteSpace($script:CurrentPomodoroTaskId)) {
-        $task = Get-TaskById $script:CurrentPomodoroTaskId
-        if ((Get-TaskRemainingPomodoros $task) -gt 0) { $nextTaskId = [string]$task.id } else { $hasNextPomodoro = $false }
+    $nextRound = Get-PomodoroNextRoundDecision ([string]$runtime.TaskId)
+    Set-PomodoroRuntimeIdleWorkState $false
+    if ([bool]$nextRound.HasNext -and (Get-PomodoroAutoStartNext)) {
+        $startResult = Start-Pomodoro ([string]$nextRound.TaskId)
+        return Add-PomodoroResultEvents $startResult $events
     }
-    Stop-BackgroundAudio
-    $script:TimerState = "idle"
-    $script:TimerPhase = "work"
-    $script:SecondsRemaining = (Get-PomodoroWorkMinutes) * 60
-    if ($hasNextPomodoro -and (Get-PomodoroAutoStartNext)) {
-        return Start-Pomodoro $nextTaskId
-    }
-    if ($hasNextPomodoro) {
-        if (-not [string]::IsNullOrWhiteSpace($nextTaskId)) {
-            $script:CurrentPomodoroTaskId = $nextTaskId
-            $script:CurrentPomodoroTaskTitle = (Get-TaskById $nextTaskId).title
+    if ([bool]$nextRound.HasNext) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$nextRound.TaskId)) {
+            Set-PomodoroRuntimeCurrentTask ([string]$nextRound.TaskId) ([string]$nextRound.TaskTitle)
         }
-        return New-PomodoroOperationResult $true "ReadyNextPomodoro" "" $true $null
+        return New-PomodoroOperationResult $true "ReadyNextPomodoro" "" $true $null $events
     }
     Reset-PomodoroSession
-    $script:CurrentPomodoroTaskId = $null
-    $script:CurrentPomodoroTaskTitle = T "UnboundFocus"
-    return New-PomodoroOperationResult $true "BreakDone" "" $true $null
+    Clear-PomodoroRuntimeCurrentTask
+    return New-PomodoroOperationResult $true "BreakDone" "" $true $null $events
 }
-

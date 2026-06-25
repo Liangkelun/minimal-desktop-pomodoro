@@ -1,0 +1,39 @@
+# This file is dot-sourced by Invoke-AutomatedChecks.ps1 for Translation settings UI boundary assertions.
+
+function Invoke-TranslationSettingsBoundaryCheck([string]$ModulesDir) {
+    $translationSettings = Join-Path $ModulesDir "TranslationSettings.ps1"
+    $legacyTranslationSettings = Join-Path $ModulesDir "WatermarkTranslation.Settings.ps1"
+    $translationRuntime = Join-Path $ModulesDir "TranslationRuntime.ps1"
+    $translationProviders = Join-Path $ModulesDir "TranslationProviders.ps1"
+    $translationPlatform = Join-Path $ModulesDir "TranslationPlatform.ps1"
+    $watermarkMenu = Join-Path $ModulesDir "WatermarkMode.Menu.ps1"
+    $settingsView = Join-Path $ModulesDir "Views.Settings.ps1"
+    $settingsApply = Join-Path $ModulesDir "Views.Settings.Apply.ps1"
+    $settingsSchema = Join-Path $ModulesDir "SettingsSchema.ps1"
+    $dictionaryInstall = Join-Path $ModulesDir "TranslationDictionaryInstall.ps1"
+    foreach ($requiredFile in @($translationSettings, $legacyTranslationSettings, $translationRuntime, $translationProviders, $translationPlatform, $dictionaryInstall, $watermarkMenu, $settingsView, $settingsApply, $settingsSchema)) { Test-RequiredFile $requiredFile }
+    . (Join-Path $ModulesDir "ModuleLoadOrder.ps1"); $loadOrder = Get-TaskPomodoroModuleLoadOrder
+    foreach ($moduleName in @("TranslationPlatform.ps1", "TranslationRuntime.ps1", "TranslationProviders.ps1", "TranslationDictionaryInstall.ps1", "TranslationSettings.ps1", "WatermarkTranslation.Settings.ps1", "WatermarkMode.Menu.ps1", "Views.Settings.Apply.ps1", "Views.Settings.ps1")) { if ([Array]::IndexOf($loadOrder, $moduleName) -lt 0) { throw "ModuleLoadOrder.ps1 missing $moduleName" } }
+    if ([Array]::IndexOf($loadOrder, "TranslationPlatform.ps1") -gt [Array]::IndexOf($loadOrder, "TranslationSettings.ps1")) { throw "TranslationPlatform.ps1 must load before TranslationSettings.ps1" }
+    if ([Array]::IndexOf($loadOrder, "TranslationRuntime.ps1") -gt [Array]::IndexOf($loadOrder, "TranslationSettings.ps1")) { throw "TranslationRuntime.ps1 must load before TranslationSettings.ps1" }
+    if ([Array]::IndexOf($loadOrder, "TranslationProviders.ps1") -gt [Array]::IndexOf($loadOrder, "TranslationSettings.ps1")) { throw "TranslationProviders.ps1 must load before TranslationSettings.ps1" }
+    if ([Array]::IndexOf($loadOrder, "TranslationDictionaryInstall.ps1") -gt [Array]::IndexOf($loadOrder, "TranslationSettings.ps1")) { throw "TranslationDictionaryInstall.ps1 must load before TranslationSettings.ps1" }
+    if ([Array]::IndexOf($loadOrder, "TranslationSettings.ps1") -gt [Array]::IndexOf($loadOrder, "WatermarkTranslation.Settings.ps1")) { throw "TranslationSettings.ps1 must load before WatermarkTranslation.Settings.ps1" }
+    if ([Array]::IndexOf($loadOrder, "TranslationSettings.ps1") -gt [Array]::IndexOf($loadOrder, "Views.Settings.Apply.ps1") -or [Array]::IndexOf($loadOrder, "TranslationSettings.ps1") -gt [Array]::IndexOf($loadOrder, "Views.Settings.ps1")) { throw "TranslationSettings.ps1 must load before settings views that use translation controls" }
+    $settingsRaw = Get-Content -LiteralPath $translationSettings -Encoding UTF8 -Raw
+    $settingsAndDictionaryRaw = $settingsRaw + (Get-Content -LiteralPath $dictionaryInstall -Encoding UTF8 -Raw)
+    foreach ($required in @("function Get-TranslationSettingsDialog", "function Test-TranslationSettingsDialogOpen", "function Show-TranslationSettingsDialog", "function Add-TranslationSettingsRows", "function Apply-TranslationSettingsControls", "function Show-TranslationDictionaryImportDialog", "function Open-TranslationHelpPage", "function Invoke-TranslationFullDictionaryButton", "Install-TranslationFullDictionary", "Clear-TranslationDictionaryBinding", "Protect-TranslationSecret", "Test-TranslationProviderEnabled", "Invoke-TranslationProviderApi", "Save-TranslationSettings", "Save-TranslationDictionarySettings", "Suspend-TranslationRuntimeForSettings", "Resume-TranslationRuntimeAfterSettings", "Update-TranslationRuntimeAfterSettingsChanged", "`$script:TranslationSettingsDialog")) { if ($settingsAndDictionaryRaw -notlike "*$required*") { throw "TranslationSettings.ps1 missing required marker: $required" } }
+    Test-FileDoesNotContain $translationSettings @("WatermarkTranslationTimer", "WatermarkTranslationClipboardTimer", "Start-WatermarkTranslationClipboardListener", "Stop-WatermarkTranslationClipboardListener", '$script:WatermarkTranslationMode', '$script:WatermarkTranslationSettingsDialog') "TranslationSettings.ps1 must use neutral settings dialog state and TranslationRuntime facade instead of runtime internals."
+    $legacySettingsRaw = Get-Content -LiteralPath $legacyTranslationSettings -Encoding UTF8 -Raw
+    foreach ($required in @("Show-WatermarkTranslationSettingsDialog", "Show-TranslationSettingsDialog", "Apply-WatermarkTranslationSettingsControls", "Apply-TranslationSettingsControls", "Show-WatermarkTranslationDictionaryImportDialog", "Show-TranslationDictionaryImportDialog")) { if ($legacySettingsRaw -notlike "*$required*") { throw "WatermarkTranslation.Settings.ps1 missing compatibility wrapper marker: $required" } }
+    Test-FileDoesNotContain $legacyTranslationSettings @("New-Object System.Windows.Forms.Form", "New-Object System.Windows.Forms.ComboBox", "New-Object System.Windows.Forms.NumericUpDown", "New-Object System.Windows.Forms.OpenFileDialog", "Save-TranslationSettings", "Save-TranslationDictionarySettings", "Protect-TranslationSecret", '$script:TranslationSettingsDialog', '$script:WatermarkTranslationSettingsDialog') "WatermarkTranslation.Settings.ps1 must stay compatibility-only; TranslationSettings.ps1 owns settings UI implementation."
+    Test-FileDoesNotContain $translationRuntime @('$script:WatermarkTranslationSettingsDialog', '$script:TranslationSettingsDialog', "function Test-TranslationSettingsDialogOpen") "TranslationRuntime.ps1 must not own translation settings dialog state."
+    Test-FileDoesNotContain $watermarkMenu @('$script:WatermarkTranslationSettingsDialog', '$script:TranslationSettingsDialog') "WatermarkMode.Menu.ps1 must use TranslationSettings dialog facade instead of dialog state."
+    Test-FileDoesNotContain $settingsView @("WatermarkTranslation.Settings.ps1", '$script:TranslationSettingsDialog', '$script:WatermarkTranslationSettingsDialog') "Views.Settings.ps1 must call translation settings controls without owning dialog state."
+    Test-FileDoesNotContain $settingsApply @('$script:TranslationSettingsDialog', '$script:WatermarkTranslationSettingsDialog') "Views.Settings.Apply.ps1 must apply translation controls without owning dialog state."
+    $hostStateTokens = @("TaskFontSize", "WindowX", "WindowY", "WindowWidth", "WindowHeight", "TranslationDetailX", "TranslationDetailY", "Save-GeneralSettings", "Save-Settings", "Resize-WindowForTaskRows", "Set-ActiveView", "Render-CurrentView")
+    Test-FileDoesNotContain $translationSettings $hostStateTokens "TranslationSettings.ps1 must keep translation font and surface settings separate from host window state and task font settings."
+    $settingsSchemaRaw = Get-Content -LiteralPath $settingsSchema -Encoding UTF8 -Raw
+    foreach ($required in @("TranslationFontSize = 15.0", 'TranslationSurfaceStyle = "follow"', 'TranslationSurfaceColorMode = "black-on-white"', 'TranslationDictionaryFetchOrder = "remote-first"', "`$script:Settings.TranslationFontSize = Get-ClampedNumber", "TranslationSurfaceStyle -notin", "TranslationSurfaceColorMode -notin", "TranslationDictionaryFetchOrder -notin", "TranslationDetailX", "TranslationDetailY", "PSObject.Properties.Remove")) { if ($settingsSchemaRaw -notlike "*$required*") { throw "SettingsSchema.ps1 must keep translation font defaults/normalization and remove obsolete translation detail position fields: $required" } }
+    "Translation settings UI is isolated from runtime, host window state, and historical wrappers"
+}

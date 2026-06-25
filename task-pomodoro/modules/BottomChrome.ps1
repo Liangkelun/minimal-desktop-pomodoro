@@ -30,9 +30,9 @@ function Update-BottomChromeVisibility {
     if ($null -eq $script:Form -or $null -eq $script:NavRowStyle) {
         return
     }
-    Update-WatermarkToggleButton
-    if ($script:WatermarkMode) {
-        Set-BottomChromeVisible $false
+    Update-WatermarkRuntimeToggleButton
+    if (Test-WatermarkRuntimeActive) {
+        if (-not [bool]$script:WatermarkPreserveLayout) { Set-BottomChromeVisible $false }
         return
     }
 
@@ -68,11 +68,11 @@ function Update-BottomChromeVisibility {
 
 function Add-BottomChromeTracking([System.Windows.Forms.Control]$Control) {
     $Control.Add_MouseMove({
-        Update-WatermarkToggleButton
+        Update-WatermarkRuntimeToggleButton
         Update-BottomChromeVisibility
     })
     $Control.Add_MouseEnter({
-        Update-WatermarkToggleButton
+        Update-WatermarkRuntimeToggleButton
         Update-BottomChromeVisibility
     })
 }

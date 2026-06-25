@@ -5,6 +5,11 @@ task-pomodoro/launch.log
 task-pomodoro/update.log
 dist/
 task-pomodoro/dist/
+task-pomodoro/reports/
+
+# Private source material and raw external conversations
+原材料/
+raw-materials/
 
 # Local OS/editor noise
 Thumbs.db
@@ -18,3 +23,15 @@ Desktop.ini
 *.ps1xml
 *.pssc
 *.psrc
+
+# Python local build noise
+__pycache__/
+*.pyc
+
+# Local dictionary source cache
+task-pomodoro/.cache/
+
+# Large local dictionary packages
+local-assets/dictionaries/*.tsv
+local-assets/dictionaries/*.idx
+local-assets/dictionaries/*.zip

@@ -1,5 +1,13 @@
 # This file is dot-sourced by TaskPomodoro.ps1. Keep functions side-effect-light at load time.
 
+function Add-TaskTimerInvalidationEvent([object]$Result, [string]$Id, [string]$Reason) {
+    if ($null -eq $Result -or -not [bool]$Result.Ok) {
+        return $Result
+    }
+    Add-AppResultEvents $Result (New-AppEvent "TaskTimerInvalidated" @{ TaskId = $Id; Reason = $Reason; TimerPolicy = "stop-if-current" }) | Out-Null
+    Add-Member -InputObject $Result -MemberType NoteProperty -Name ShouldUpdateTimer -Value $true -Force
+    return $Result
+}
 function Add-Task([string]$Title, [bool]$ScheduleToday) {
     $parsed = Parse-TaskInput $Title
     if ([string]::IsNullOrWhiteSpace($parsed.Title)) {
@@ -18,7 +26,10 @@ function Add-Task([string]$Title, [bool]$ScheduleToday) {
     else {
         Save-Tasks
     }
-    return New-TaskOperationResult $true "TaskAdded" "" $true $task
+    $result = New-TaskOperationResult $true "TaskAdded" "" $true $task
+    Add-BehaviorResultEvent $result "task_created" ([string]$task.id) "" "user" @{ Title = [string]$task.title } | Out-Null
+    if ($ScheduleToday) { Add-BehaviorResultEvent $result "task_scheduled_today" ([string]$task.id) "" "user" @{ FromCreate = $true } | Out-Null }
+    return $result
 }
 
 function Complete-Task([string]$Id) {
@@ -31,9 +42,12 @@ function Complete-Task([string]$Id) {
         $task.completedAt = Get-IsoNow
     }
     Save-Tasks
-    return New-TaskOperationResult $true "TaskCompleted" "" $true $task
+    $sessionId = Get-BehaviorSessionForTask $Id
+    $result = Add-TaskTimerInvalidationEvent (New-TaskOperationResult $true "TaskCompleted" "" $true $task) $Id "completed"
+    Add-BehaviorResultEvent $result "task_completed" $Id $sessionId "user" @{ Title = [string]$task.title } | Out-Null
+    Stop-BehaviorSessionForTask $Id
+    return $result
 }
-
 function Uncomplete-Task([string]$Id) {
     $task = Get-TaskById $Id
     if ($null -eq $task -or [string]$task.status -ne "done") {
@@ -64,9 +78,12 @@ function End-Task([string]$Id) {
     $task.status = "archived"
     $task.archivedAt = Get-IsoNow
     Save-Tasks
-    return New-TaskOperationResult $true "" "" $true $task
+    $sessionId = Get-BehaviorSessionForTask $Id
+    $result = Add-TaskTimerInvalidationEvent (New-TaskOperationResult $true "" "" $true $task) $Id "archived"
+    Add-BehaviorResultEvent $result "task_cancelled" $Id $sessionId "user" @{ Title = [string]$task.title } | Out-Null
+    Stop-BehaviorSessionForTask $Id
+    return $result
 }
-
 function Delete-Task([string]$Id) {
     if ([string]::IsNullOrWhiteSpace($Id)) {
         return New-TaskOperationResult $false "" "" $false $null
@@ -77,7 +94,7 @@ function Delete-Task([string]$Id) {
         return New-TaskOperationResult $false "" "" $false $null
     }
     Save-Tasks
-    return New-TaskOperationResult $true "TaskDeleted" "" $true $null
+    return Add-TaskTimerInvalidationEvent (New-TaskOperationResult $true "TaskDeleted" "" $true $null) $Id "deleted"
 }
 
 function Set-TaskTitle([string]$Id, [string]$Title) {
@@ -106,9 +123,10 @@ function Schedule-TaskToday([string]$Id) {
     $task.scheduledAt = Get-IsoNow
     $task.todaySortOrder = Get-NextTaskSortOrder "today"
     Save-Tasks
-    return New-TaskOperationResult $true "ScheduledToday" "" $true $task
+    $result = New-TaskOperationResult $true "ScheduledToday" "" $true $task
+    Add-BehaviorResultEvent $result "task_scheduled_today" $Id "" "user" @{ FromCreate = $false } | Out-Null
+    return $result
 }
-
 function Unschedule-TaskToday([string]$Id) {
     $task = Get-TaskById $Id
     if ($null -eq $task) {
@@ -118,17 +136,7 @@ function Unschedule-TaskToday([string]$Id) {
     $task.scheduledAt = $null
     $task.todaySortOrder = $null
     Save-Tasks
-    return New-TaskOperationResult $true "" "" $true $task
-}
-
-function Invoke-TaskDefaultAction([string]$Mode, [string]$Id) {
-    if ([string]::IsNullOrWhiteSpace($Id)) {
-        return New-TaskOperationResult $false "" "" $false $null
-    }
-    if ($Mode -eq "today") {
-        return Start-Pomodoro $Id
-    }
-    else {
-        return Schedule-TaskToday $Id
-    }
+    $result = Add-TaskTimerInvalidationEvent (New-TaskOperationResult $true "" "" $true $task) $Id "unscheduled"
+    Add-BehaviorResultEvent $result "task_unscheduled_today" $Id (Get-BehaviorSessionForTask $Id) "user" @{} | Out-Null
+    return $result
 }

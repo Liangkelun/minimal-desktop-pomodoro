@@ -88,9 +88,7 @@ function Add-DesktopShortcutPromptDrag([System.Windows.Forms.Control]$Control, [
 }
 
 function Show-DesktopShortcutPrompt {
-    if ($null -ne $script:Form -and $script:WatermarkMode) {
-        $script:Form.SetClickThrough($false)
-    }
+    if (Test-WatermarkRuntimeActive) { Suspend-WatermarkRuntimeClickThrough }
 
     $dialog = New-Object System.Windows.Forms.Form
     try {
@@ -198,9 +196,7 @@ function Show-DesktopShortcutPrompt {
         $dialog.Dispose()
         Stop-DesktopShortcutPromptDrag
         Remove-Variable -Name DesktopShortcutPromptResult -Scope Script -ErrorAction SilentlyContinue
-        if ($script:WatermarkMode) {
-            Update-WatermarkClickThrough
-        }
+        if (Test-WatermarkRuntimeActive) { Update-WatermarkRuntimeClickThrough }
     }
 }
 
@@ -210,7 +206,7 @@ function Invoke-FirstRunDesktopShortcutPrompt {
     }
     $choice = Show-DesktopShortcutPrompt
     $script:Settings.DesktopShortcutPrompted = $true
-    Save-Settings
+    Save-AppRuntimeSettings
     if ($choice -eq [System.Windows.Forms.DialogResult]::OK) {
         Invoke-DesktopShortcutInstallFromMenu | Out-Null
     }

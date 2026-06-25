@@ -19,9 +19,9 @@ function Add-SettingSection([System.Windows.Forms.TableLayoutPanel]$Panel, [stri
     $label.Dock = [System.Windows.Forms.DockStyle]::Fill
     $label.TextAlign = [System.Drawing.ContentAlignment]::MiddleLeft
     $label.BackColor = $Panel.BackColor
-    $label.ForeColor = [System.Drawing.Color]::DimGray
-    $label.Margin = New-Object System.Windows.Forms.Padding(0, 4, 0, 0)
-    $label.Font = New-Object System.Drawing.Font -ArgumentList @($label.Font, [System.Drawing.FontStyle]::Bold)
+    $label.ForeColor = [System.Drawing.Color]::FromArgb(17, 24, 39)
+    $label.Margin = New-Object System.Windows.Forms.Padding(0, 10, 0, 2)
+    $label.Font = New-Object System.Drawing.Font -ArgumentList @($label.Font.FontFamily, ($label.Font.Size + 2.0), [System.Drawing.FontStyle]::Bold)
     $Panel.Controls.Add($label, 0, $Row)
     $Panel.SetColumnSpan($label, 2)
 }
@@ -38,11 +38,19 @@ function Set-ObjectPropertyValue([object]$Object, [string]$Name, [object]$Value)
 }
 
 function Get-AudioPathForPreview([string]$Kind, [string]$CustomPath) {
+    if (-not [string]::IsNullOrWhiteSpace($CustomPath) -and (Test-Path -LiteralPath $CustomPath)) {
+        return $CustomPath
+    }
+    $catalogPath = Get-AudioCatalogDefaultPath $Kind
+    if (-not [string]::IsNullOrWhiteSpace($catalogPath)) {
+        return $catalogPath
+    }
     switch ($Kind) {
         "start" { return Resolve-AudioFile $CustomPath "ding.wav" }
         "end" { return Resolve-AudioFile $CustomPath "Alarm01.wav" }
         "work" { return Resolve-AudioFile $CustomPath "chimes.wav" }
         "break" { return Resolve-AudioFile $CustomPath "chord.wav" }
+        "starter" { return Resolve-AudioFile $CustomPath "chimes.wav" }
     }
     return $null
 }
@@ -71,13 +79,29 @@ function Select-AudioFileFromButton([System.Windows.Forms.Button]$Button) {
 
     if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
         Set-ObjectPropertyValue $tag.State $tag.Property $dialog.FileName
-        if ($null -ne $tag.Library) { $item = [pscustomobject]@{ Label = T "AudioFile"; Path = $dialog.FileName; IsCustom = $true }; $tag.Library.Items.Add($item) | Out-Null; $tag.Library.SelectedItem = $item }
+        if ($null -ne $tag.Library) { $item = New-CustomAudioLibraryItem $dialog.FileName; $tag.Library.Items.Add($item) | Out-Null; $tag.Library.SelectedItem = $item; Set-AudioLibraryDropDownWidth $tag.Library; Set-AudioLibraryTooltip $tag.Library }
         $Button.Text = "...*"
         Set-Status ((T "AudioSelected") + ": " + [System.IO.Path]::GetFileName($dialog.FileName))
         if ($null -eq $tag.Library) {
             Play-AudioPreview $tag
         }
     }
+}
+
+function New-VolumeSettingControl([int]$Value) {
+    $panel = New-Object System.Windows.Forms.TableLayoutPanel
+    $panel.Dock = [System.Windows.Forms.DockStyle]::Fill; $panel.ColumnCount = 2; $panel.RowCount = 1; $panel.Margin = New-Object System.Windows.Forms.Padding(0); $panel.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
+    $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Percent, 100))) | Out-Null; $panel.ColumnStyles.Add((New-Object System.Windows.Forms.ColumnStyle([System.Windows.Forms.SizeType]::Absolute, 56))) | Out-Null
+    $slider = New-Object System.Windows.Forms.TrackBar
+    $slider.Minimum = 0; $slider.Maximum = 100; $slider.TickFrequency = 10; $slider.SmallChange = 5; $slider.LargeChange = 10; $slider.Value = [Math]::Max(0, [Math]::Min(100, $Value))
+    $slider.Dock = [System.Windows.Forms.DockStyle]::Fill; $slider.AutoSize = $false; $slider.Height = 30; $slider.Margin = New-Object System.Windows.Forms.Padding(0, 3, 4, 0)
+    $label = New-Object System.Windows.Forms.Label
+    $label.Dock = [System.Windows.Forms.DockStyle]::Fill; $label.TextAlign = [System.Drawing.ContentAlignment]::MiddleRight; $label.AutoSize = $false; $label.MinimumSize = New-Object System.Drawing.Size(56, 0); $label.Margin = New-Object System.Windows.Forms.Padding(0); $label.BackColor = $panel.BackColor; $label.Text = "$($slider.Value)%"
+    $slider.Tag = $label
+    $slider.Add_Scroll({ param($sender, $eventArgs) $sender.Tag.Text = "$($sender.Value)%"; Set-BackgroundAudioVolume ([int]$sender.Value) })
+    $slider.Add_MouseUp({ param($sender, $eventArgs) Play-VolumePreview ([int]$sender.Value) })
+    $panel.Controls.Add($slider, 0, 0); $panel.Controls.Add($label, 1, 0)
+    return [pscustomobject]@{ Panel = $panel; Slider = $slider; Label = $label }
 }
 
 function New-CheckOnlyControl([bool]$Checked) {
@@ -116,6 +140,22 @@ function Set-LoopToggleVisual([System.Windows.Forms.CheckBox]$Loop) {
     }
 }
 
+function Set-AudioLibraryTooltip([System.Windows.Forms.ComboBox]$Library) {
+    if ($null -eq $Library -or $null -eq $Library.Tag -or -not ($Library.Tag.PSObject.Properties.Name -contains "ToolTip")) { return }
+    $label = ""
+    if ($null -ne $Library.SelectedItem) { $label = [string]$Library.SelectedItem.Label }
+    if (-not [string]::IsNullOrWhiteSpace($label)) { $Library.Tag.ToolTip.SetToolTip($Library, $label) }
+}
+
+function Set-AudioLibraryDropDownWidth([System.Windows.Forms.ComboBox]$Library) {
+    if ($null -eq $Library) { return }
+    $width = [Math]::Max(220, [int]$Library.Width)
+    foreach ($item in $Library.Items) {
+        $label = [string]$item.Label
+        if (-not [string]::IsNullOrWhiteSpace($label)) { $width = [Math]::Max($width, [System.Windows.Forms.TextRenderer]::MeasureText($label, $Library.Font).Width + 36) }
+    }
+    $Library.DropDownWidth = [Math]::Min(520, $width)
+}
 function New-AudioSettingControl([bool]$Checked, [object]$AudioState, [string]$Property, [string]$Kind, [bool]$IncludeLoop, [bool]$LoopChecked) {
     $panel = New-Object System.Windows.Forms.TableLayoutPanel
     $panel.Dock = [System.Windows.Forms.DockStyle]::Fill; $panel.RowCount = 1; $panel.ColumnCount = 3; $panel.Margin = New-Object System.Windows.Forms.Padding(0); $panel.Padding = New-Object System.Windows.Forms.Padding(0); $panel.BackColor = [System.Drawing.Color]::FromArgb(245, 247, 250)
@@ -126,18 +166,21 @@ function New-AudioSettingControl([bool]$Checked, [object]$AudioState, [string]$P
     $check.Add_CheckedChanged({ param($sender, $eventArgs) if ($sender.Checked) { Play-AudioPreview $sender.Tag } })
     $panel.Controls.Add($check, 0, 0)
     $library = New-Object System.Windows.Forms.ComboBox
+    $audioToolTip = New-Object System.Windows.Forms.ToolTip
     $library.Dock = [System.Windows.Forms.DockStyle]::Fill; $library.DropDownStyle = [System.Windows.Forms.ComboBoxStyle]::DropDownList; $library.DisplayMember = "Label"; $library.ValueMember = "Path"; $library.Height = 24; $library.Margin = New-Object System.Windows.Forms.Padding(4, 1, 0, 0)
-    $map = @{ start = @("focus-start.wav", "break-start.wav"); end = @("break-start.wav", "focus-start.wav"); work = @("focus-loop.mp3", "focus-loop.wav", "break-loop.mp3", "break-loop.wav"); break = @("break-loop.mp3", "break-loop.wav", "focus-loop.mp3", "focus-loop.wav") }
-    $prefix = "Built-in "; if ([string]$script:Settings.Language -ne "en-US") { $prefix = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5YaF572uIA==")) }
-    if ($map.ContainsKey($Kind)) { foreach ($fileName in $map[$Kind]) { $path = Get-DefaultAudioPath $fileName; if (-not [string]::IsNullOrWhiteSpace($path)) { $library.Items.Add([pscustomobject]@{ Label = "$prefix$fileName"; Path = $path; IsCustom = $false }) | Out-Null } } }
+    foreach ($catalogItem in @(Get-AudioCatalogItemsForKind $Kind)) {
+        $library.Items.Add((New-AudioLibraryItem $catalogItem)) | Out-Null
+    }
     $button = New-Button "..." 32
     $button.Dock = [System.Windows.Forms.DockStyle]::Fill; $button.Height = 24; $button.Margin = New-Object System.Windows.Forms.Padding(4, 1, 0, 0); $button.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind; Library = $library }
     $button.Add_Click({ param($sender, $eventArgs) Select-AudioFileFromButton $sender })
     $current = [string](Get-ObjectPropertyValue $AudioState $Property); foreach ($item in $library.Items) { if ([string]::Equals([string]$item.Path, $current, [System.StringComparison]::OrdinalIgnoreCase)) { $library.SelectedItem = $item; break } }
-    if ($library.SelectedIndex -lt 0 -and -not [string]::IsNullOrWhiteSpace($current)) { $button.Text = "...*"; $custom = [pscustomobject]@{ Label = T "AudioFile"; Path = $current; IsCustom = $true }; $library.Items.Add($custom) | Out-Null; $library.SelectedItem = $custom }
+    if ($library.SelectedIndex -lt 0 -and -not [string]::IsNullOrWhiteSpace($current)) { $button.Text = "...*"; $custom = New-CustomAudioLibraryItem $current; $library.Items.Add($custom) | Out-Null; $library.SelectedItem = $custom }
     elseif ($library.SelectedIndex -lt 0 -and $library.Items.Count -gt 0) { $library.SelectedIndex = 0 }
-    $library.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind; Button = $button }
-    $library.Add_SelectedIndexChanged({ param($sender, $eventArgs) if ($null -eq $sender.SelectedItem) { return }; $tag = $sender.Tag; $item = $sender.SelectedItem; Set-ObjectPropertyValue $tag.State $tag.Property ([string]$item.Path); if ([bool]$item.IsCustom) { $tag.Button.Text = "...*" } else { $tag.Button.Text = "..." }; Play-AudioPreview $tag })
+    $library.Tag = [pscustomobject]@{ State = $AudioState; Property = $Property; Kind = $Kind; Button = $button; ToolTip = $audioToolTip }
+    $library.Add_SelectedIndexChanged({ param($sender, $eventArgs) if ($null -eq $sender.SelectedItem) { return }; $tag = $sender.Tag; $item = $sender.SelectedItem; Set-ObjectPropertyValue $tag.State $tag.Property ([string]$item.Path); if ([bool]$item.IsCustom) { $tag.Button.Text = "...*" } else { $tag.Button.Text = "..." }; Set-AudioLibraryTooltip $sender; Play-AudioPreview $tag })
+    Set-AudioLibraryDropDownWidth $library
+    Set-AudioLibraryTooltip $library
     $panel.Controls.Add($library, 1, 0); $panel.Controls.Add($button, 2, 0)
     $loop = $null
     if ($IncludeLoop) {
@@ -164,59 +207,3 @@ function New-AudioSettingControl([bool]$Checked, [object]$AudioState, [string]$P
         Loop = $loop
     }
 }
-
-function Apply-SettingsControls([object]$Controls) {
-    if ($null -eq $Controls) {
-        return 0
-    }
-
-    $selectedLanguage = "zh-CN"
-    if ($Controls.Language.SelectedItem -ne $null) {
-        $selectedLanguage = [string]$Controls.Language.SelectedItem.Value
-    }
-    $script:Settings.Language = $selectedLanguage
-    $script:Settings.WorkMinutes = [int]$Controls.Work.Value
-    $script:Settings.ShortBreakMinutes = [int]$Controls.Break.Value
-    $script:Settings.Opacity = [double]($Controls.Opacity.Value / 100)
-    $script:Settings.TaskFontSize = [double]$Controls.TaskFont.Value
-    $script:Settings.BlurTextStyle = [string]$Controls.BlurText.SelectedItem.Value
-    $script:Settings.TopMost = [bool]$Controls.TopMost.Checked
-    $script:Settings.DailyArchiveHour = [int]$Controls.DailyArchiveHour.Value
-    $script:Settings.DailyArchiveMinute = [int]$Controls.DailyArchiveMinute.Value
-    $script:Settings.SoundReminder = ([bool]$Controls.StartSound.Checked -or [bool]$Controls.EndSound.Checked)
-    $script:Settings.StartSoundReminder = [bool]$Controls.StartSound.Checked
-    $script:Settings.EndSoundReminder = [bool]$Controls.EndSound.Checked
-    $script:Settings.ColorReminder = [bool]$Controls.Color.Checked
-    $script:Settings.WorkMusic = [bool]$Controls.WorkMusic.Checked
-    $script:Settings.WorkMusicLoop = [bool]$Controls.WorkMusicLoop.Checked
-    $script:Settings.BreakMusic = [bool]$Controls.BreakMusic.Checked
-    $script:Settings.BreakMusicLoop = [bool]$Controls.BreakMusicLoop.Checked
-    $script:Settings.StartSoundFile = [string](Get-ObjectPropertyValue $Controls.AudioState "StartSoundFile")
-    $script:Settings.EndSoundFile = [string](Get-ObjectPropertyValue $Controls.AudioState "EndSoundFile")
-    $script:Settings.WorkMusicFile = [string](Get-ObjectPropertyValue $Controls.AudioState "WorkMusicFile")
-    $script:Settings.BreakMusicFile = [string](Get-ObjectPropertyValue $Controls.AudioState "BreakMusicFile")
-    $script:Form.TopMost = [bool]$script:Settings.TopMost
-    if ($script:WatermarkMode) {
-        $script:WatermarkPreviousOpacity = [double]$script:Settings.Opacity
-        $script:Form.Opacity = Get-WatermarkModeOpacity
-    }
-    else {
-        $script:Form.Opacity = [double]$script:Settings.Opacity
-    }
-    $script:Form.Text = T "AppTitle"
-    Update-NavText
-    Update-WatermarkToggleButton
-    if ($script:TimerState -eq "running") {
-        Start-BackgroundAudio $script:TimerPhase
-    }
-    elseif ($script:TimerState -ne "paused") {
-        Stop-BackgroundAudio
-    }
-    if ($script:TimerState -eq "idle") {
-        $script:SecondsRemaining = [int]$script:Settings.WorkMinutes * 60
-    }
-    Save-Settings
-    Update-TimerLabels
-    return (Invoke-DailyArchiveIfDue)
-}
-
